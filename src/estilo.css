@@ -292,3 +292,9 @@ details.dm-bloque > summary { cursor: pointer; list-style: none; }
   .deslizador::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -9px; }
   .deslizador::-moz-range-thumb { width: 16px; height: 16px; }
 }
+
+/* ---------- Vista domo (tecla D): solo el dome master, cuadrado y centrado, sin HUD ---------- */
+body[data-vista="domo"], body[data-vista="simulador"] { background: #000; }
+body:is([data-vista="domo"], [data-vista="simulador"]) #hud { display: none !important; }
+body[data-vista="domo"] canvas { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); cursor: none; }
+body[data-vista="simulador"] canvas { cursor: grab; }

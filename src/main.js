@@ -19,12 +19,14 @@ import { escalaVisual, gelatinaDe, tiemposGiro, desplazamientoFx } from './movim
 import { modulados } from './lfo.js';
 import { lanzar as lanzarFantasma, animarFantasmas, phaser as fantasmasPhaser } from './fantasmas.js';
 import { patronAleatorio } from './azar.js';
+import * as reloj from './reloj.js';
 import * as grabacion from './grabacion.js';
 import {
   MODULOS, ETIQUETAS, TONALIDADES, MODOS, nombreNota, nombreEscala, coord, dosCifras, registrar, actualizarTelemetria, escribiendo,
   CURSOR_RETICULA, CURSOR_MODULO, CURSOR_AJENO,
 } from './hud.js';
 import { crearPanel } from './panel.js';
+import * as cupula from './cupula.js';
 import { crearEditor } from './editor.js';
 import * as audio from './audio.js';
 import * as salida from './salida.js';
@@ -132,6 +134,7 @@ function quitarPieza(id, polvoFlotante = false) {
 
 // Reemplaza todo lo local por el estado completo (al unirse y al reconectar).
 function sincronizar(estado) {
+  reloj.fijarAncla(estado.reloj); // pulso compartido (el servidor es la referencia)
   sala.tempo = estado.tempo;
   sala.escala = estado.escala;
   sala.tripulantes = new Map(estado.tripulantes.map((t) => [t.id, t]));
@@ -168,6 +171,7 @@ function enlace(estado, texto) {
 
 socket.on('connect', async () => {
   enlace('vivo', 'Enlace · en línea');
+  reloj.sincronizar(pedir); // mide el desfase con el reloj del servidor (y lo repite cada 15 s)
   const r = await pedir('unirse', {});
   if (!avisarError(r)) return;
   yo = r.tu;
@@ -260,8 +264,9 @@ socket.on('instrumento:editado', (inst) => {
 });
 
 let avisoTempo = null; // el registro espera a que el tempo deje de moverse
-socket.on('tempo:cambiado', ({ tempo, por }) => {
+socket.on('tempo:cambiado', ({ tempo, por, reloj: ancla }) => {
   sala.tempo = tempo;
+  reloj.fijarAncla(ancla);
   refrescarTelemetria();
   clearTimeout(avisoTempo);
   avisoTempo = setTimeout(() => registrar('Tempo ' + tempo + ' BPM · ' + indicativoDe(por)), 600);
@@ -399,7 +404,7 @@ window.addEventListener('keydown', (ev) => {
 // =====================================================================
 const ESTADOS = ['modulos', 'todo', 'nada'];
 // anillos del radar: no en "Nada"; con la estación cerrada, solo el director (Todo) los ve
-const actualizarReferencia = () => { referencia.visible = interfaz !== 'nada' && (sala.obra !== 'cerrada' || interfaz === 'todo'); };
+const actualizarReferencia = () => { referencia.visible = !cupula.estaActiva() && interfaz !== 'nada' && (sala.obra !== 'cerrada' || interfaz === 'todo'); };
 const NOMBRE_ESTADO = { modulos: 'Módulos', todo: 'Todo', nada: 'Nada' };
 let interfaz = 'modulos';
 function fijarInterfaz(estado) {
@@ -597,7 +602,7 @@ function enviarPosicion(p, forzar = false, final = false) {
 
 // En fase de captura para adelantarse a OrbitControls: si se toca una pieza, la cámara no orbita.
 lienzo.addEventListener('pointerdown', (ev) => {
-  if (ev.button !== 0) return;
+  if (ev.button !== 0 || cupula.estaActiva()) return; // en la vista domo no se seleccionan piezas
   const pieza = piezaBajoPuntero(ev);
   if (!pieza) { clicVacio = { x: ev.clientX, y: ev.clientY }; return; } // espacio vacío → orbitar
   clicVacio = null;
@@ -905,7 +910,8 @@ crearDomo({ activar: encenderAudio, registrar, grabacion });
 const en51 = () => { const e = salida.estado(); return e.activo ? e.modo === '5.1' : salida.ajustes.modo === '5.1'; };
 // El radar muestra los parlantes solo en modo 5.1 y en el estado "Todo", girados según la orientación
 function refrescarParlantes() {
-  const visible = en51() && interfaz === 'todo';
+  const visible = en51() && interfaz === 'todo' && !cupula.estaActiva();
+  cupula.fijarParlantes(salida.ajustes.angulos); // la carta de ajuste del domo los dibuja
   const acimuts = Object.fromEntries(salida.ANILLO.map((id) => [id, salida.acimutParlante(id)]));
   actualizarParlantes(visible, acimuts, salida.ajustes.radioCentro);
   for (const id in elParlantes) elParlantes[id].hidden = !visible;
@@ -917,11 +923,11 @@ refrescarParlantes();
 // =====================================================================
 // Animación
 // =====================================================================
-const reloj = new THREE.Clock();
+const relojCuadros = new THREE.Clock();
 let tiempo = 0;
-const fxObjetivo = new THREE.Vector3();
+const fxObjetivo = new THREE.Vector3(), enPlano = new THREE.Vector3();
 function animar() {
-  const dt = Math.min(reloj.getDelta(), 0.1);
+  const dt = Math.min(relojCuadros.getDelta(), 0.1);
   tiempo += dt;
   const rot = params.general.rotacion;
   const suavizado = 1 - Math.exp(-dt * 18); // interpola hacia la posición que manda la física del servidor
@@ -956,10 +962,11 @@ function animar() {
       desplazamientoFx(vista, p.semilla, tiempo, pulsos, fxObjetivo); // órbita del phaser
     }
     p.fx.lerp(fxObjetivo, fxSuave);
-    g.grupo.position.copy(p.base).add(p.fx);
+    enPlano.copy(p.base).add(p.fx); // su lugar en el plano de la estación (de ahí sale el sonido)
     // tamaño por voicing, tono u octava
     p.escala += (escalaVisual(vista) - p.escala) * escalaSuave;
-    g.grupo.scale.setScalar(p.escala);
+    if (cupula.estaActiva()) cupula.colocarGema(g, enPlano.x, enPlano.z, p.escala); // vista domo: en la cúpula
+    else { g.grupo.position.copy(enPlano); g.grupo.scale.setScalar(p.escala); }
     // disolución en polvo de estrella (o vuelta a la gema al revivir)
     disolverGema(g, progresoDisolucion(p, ahora));
     if (p.reviviendo && ahora - p.reviviendo.desde > 1.2) p.reviviendo = null;
@@ -968,7 +975,7 @@ function animar() {
     const prm = p.inst.parametros;
     fantasmasPhaser(g, colorDe(p.dueno), prm.fx === 'phaser' && !p.disolucion ? prm.cantidad ?? 0 : 0, pulsos);
     // posición → mezcla (estéreo o 5.1): se actualiza en vivo, también al arrastrar y con el FX
-    const pos = g.grupo.position;
+    const pos = enPlano;
     if (!p.mezcla || Math.abs(pos.x - p.mezcla.x) > 0.005 || Math.abs(pos.z - p.mezcla.z) > 0.005) {
       p.mezcla = { x: pos.x, z: pos.z };
       audio.posicionar(p.id, pos.x, pos.z);
@@ -1014,6 +1021,24 @@ cargarPlantillas()
     el.textContent = 'No se pudieron cargar los modelos. (' + e.message + ')';
     console.error(e);
   });
+
+// =====================================================================
+// VISTA DOMO (tecla D, ?vista=domo): ver cupula.js. Al entrar o salir se ocultan o vuelven el radar,
+// los parlantes, el anillo de selección y el HUD (CSS, body[data-vista]); las gemas vuelven a su
+// inclinación normal al salir.
+// =====================================================================
+cupula.agregarAlPanel(gui);
+cupula.iniciar({
+  alCambiar(activa) {
+    if (!activa) for (const p of piezas.values()) cupula.restaurarGema(p.gema);
+    if (activa && seleccion) seleccionar(null);
+    actualizarReferencia();
+    refrescarParlantes();
+    anillo.visible = !activa && !!seleccion && interfaz !== 'nada';
+    actualizarEscalaNubes();
+    registrar('Vista ' + (activa ? 'domo' : 'normal'));
+  },
+});
 
 // Prueba de estrés del audio (solo para probar, solo con npm run dev): http://localhost:5173/?estres=5
 // y un clic. Ver src/estres.js. En la versión publicada no existe (no se pueden lanzar tripulantes de

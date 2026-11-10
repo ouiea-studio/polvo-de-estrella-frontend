@@ -285,8 +285,13 @@ function avanzarTransicion(dt) {
   if (transicion.t >= 1) { transicion = null; controls.enabled = true; controls.enableDamping = true; }
 }
 
+// Enganches para la vista domo (cupula.js): si están puestos, reemplazan el dibujo del cuadro, el
+// ajuste de tamaño y la escala de las partículas (en la vista domo se dibuja en las caras de un cubo).
+export const ganchos = { render: null, ajustar: null, escalaPuntos: null };
+
 // Tamaño en píxeles de una unidad a distancia 1: lo usan las nubes de partículas.
 export function escalaPuntos() {
+  if (ganchos.escalaPuntos) return ganchos.escalaPuntos();
   const h = renderer.getDrawingBufferSize(new THREE.Vector2()).y;
   return h / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
 }
@@ -438,7 +443,8 @@ const limitar = new ShaderPass({
       gl_FragColor = vec4(min(c.rgb, vec3(40.0)), c.a);
     }`,
 });
-composer.addPass(new RenderPass(scene, camera));
+export const pasoEscena = new RenderPass(scene, camera); // la vista domo lo reemplaza por el suyo
+composer.addPass(pasoEscena);
 composer.addPass(limitar);
 composer.addPass(bloom);
 composer.addPass(estrella);
@@ -473,6 +479,10 @@ export function aplicarPost() {
 aplicarPost();
 
 export function ajustarTamanoEscena() {
+  if (ganchos.ajustar) return ganchos.ajustar();
+  ajustarTamanoNormal();
+}
+export function ajustarTamanoNormal() {
   renderer.setPixelRatio(params.general.resolucion);
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setPixelRatio(params.general.resolucion);
@@ -502,6 +512,7 @@ export function dibujar(dt, tiempo) {
   pulsoRGBValor *= Math.exp(-dt * 4 / rgb.duracion);
   lente.uniforms.uRGB.value = rgb.base + rgb.pulso * pulsoRGBValor;
   avanzarTransicion(dt);
+  if (ganchos.render) { ganchos.render(dt); return; }
   controls.update();
   composer.render(dt);
 }

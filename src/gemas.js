@@ -358,7 +358,7 @@ export function crearGema(tipo, color) {
   const polvo = crearPolvo(plantilla.polvoGeo, color);
   giro.add(polvo.puntos);
   scene.add(grupo);
-  return { grupo, giro, malla, gel, vidrio, nube: nube.material, polvo, resorte: { x: 0, v: 0 }, disuelta: 0 };
+  return { grupo, giro, malla, gel, vidrio, nube: nube.material, polvo, resorte: { x: 0, v: 0 }, disuelta: 0, inclinacion: INCLINACION[tipo] };
 }
 
 export function destruirGema(gema) {

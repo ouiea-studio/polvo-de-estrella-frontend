@@ -13,6 +13,7 @@ import * as Tone from 'tone';
 import * as salida from './salida.js';
 import { modulados } from './lfo.js';
 import { adsr, ligado } from './envolvente.js';
+import * as reloj from './reloj.js';
 // no-inline: en producción el worklet va como archivo propio
 import urlVigilante from './vigilante.worklet.js?url&no-inline';
 
@@ -62,8 +63,7 @@ function compensacionFiltro(f) {
 const NIVEL = { kick: -4, snare: 7, hat: -5, perc: -20, armonia: -17.5, melodia: -13 };
 // Envío al subgrave (LFE, solo en 5.1): automático según el instrumento.
 const LFE = { kick: 0.6, snare: 0.05, hat: 0, perc: 0, armonia: 0.1, melodia: 0 };
-// Phaser: una vuelta completa cada dos compases de 4/4
-const hzPhaser = (bpm) => bpm / 60 / 8;
+// Phaser: una vuelta completa cada dos compases de 4/4 (barridoPhaser, desde el pulso)
 
 let escala = { tonica: 'D', modo: 'dorico' };
 let tempo = 70;
@@ -135,21 +135,26 @@ function instanteLibre(objeto, time) {
 // sincronizado al tempo. (Tone.Phaser es estéreo con los lados en contrafase: al sumarlo a mono,
 // como hace la parte espacial, el efecto se cancela.) "cantidad" = mezcla: 1 = mitad seco y mitad
 // desfasado, que es donde las cancelaciones son más profundas.
+// El barrido lo programa el control continuo (modularContinuo) desde el pulso del Transport, que está
+// alineado al reloj compartido: así va en fase con el halo del phaser en cualquier dispositivo
+// (antes era un Tone.LFO libre, con su propia fase).
+const barridoPhaser = (pul) => 300 + 2900 * (0.5 + 0.5 * Math.sin(2 * Math.PI * pul / 8)); // 300–3.200 Hz
 function crearPhaser() {
   const entrada = new Tone.Gain(1), seco = new Tone.Gain(1), humedo = new Tone.Gain(0), salidaFx = new Tone.Gain(1);
-  const lfo = new Tone.LFO({ frequency: hzPhaser(tempo), min: 300, max: 3200, type: 'sine' }).start();
+  const frecuencia = new Tone.Signal({ value: 1000, units: 'frequency' });
   const etapas = Array.from({ length: 4 }, () => new Tone.Filter({ type: 'allpass', frequency: 1000, Q: 0.6 }));
   entrada.connect(seco);
   seco.connect(salidaFx);
   entrada.chain(...etapas, humedo, salidaFx);
-  etapas.forEach((f) => lfo.connect(f.frequency));
+  etapas.forEach((f) => frecuencia.connect(f.frequency));
   return {
-    entrada, salida: salidaFx, lfo,
+    entrada, salida: salidaFx, frecuencia, activo: false,
     cantidad(c) {
+      this.activo = c > 0;
       for (const g of [humedo.gain, seco.gain]) g.cancelScheduledValues(Tone.immediate());
       humedo.gain.rampTo(c * 0.5, 0.05); seco.gain.rampTo(1 - c * 0.5, 0.05);
     },
-    dispose() { [entrada, seco, humedo, salidaFx, lfo, ...etapas].forEach((n) => n.dispose()); },
+    dispose() { [entrada, seco, humedo, salidaFx, frecuencia, ...etapas].forEach((n) => n.dispose()); },
   };
 }
 
@@ -327,7 +332,11 @@ function modularContinuo(time) {
   if (!Number.isFinite(pul)) return;
   for (const [id, voz] of voces) {
     const inst = instrumentos.get(id);
-    if (!inst || !voz.lfoFiltro) continue;
+    if (!inst) continue;
+    if (voz.phaser.activo) {
+      try { voz.phaser.frecuencia.linearRampToValueAtTime(barridoPhaser(pul), time); } catch (e) { fallo(id, voz, e); }
+    }
+    if (!voz.lfoFiltro) continue;
     try {
       const m = modulados(inst, pul);
       // corte en octavas alrededor del elegido (recortado a un rango seguro); resonancia y compensación
@@ -476,7 +485,7 @@ function programarVisual(fn, time) {
 }
 export function atenderVisuales() {
   if (!iniciado || !visuales.length) return;
-  const ahora = Tone.getContext().currentTime; // el reloj del audio (lo que suena ahora)
+  const ahora = tiempoAudible(); // el instante del audio que está saliendo por el parlante ahora
   let quedan = 0;
   for (let i = 0; i < visuales.length; i++) {
     const v = visuales[i];
@@ -738,6 +747,8 @@ async function encender() {
   controlLfo = new Tone.Loop(modularContinuo, '128n').start(0); // control de los LFO continuos
   transport.start('+0.1');
   setInterval(vigilarReloj, 500);
+  setTimeout(alinearTransporte, 300);
+  setInterval(alinearTransporte, 1000);
 }
 
 // Vigilante del reloj: si el control de los LFO dejó de correr, se rehace; si la posición del reloj
@@ -792,8 +803,60 @@ export function fijarTempo(bpm) {
   tr.bpm.cancelScheduledValues(Tone.now());
   tr.bpm.setValueAtTime(bpm, Tone.now());
   efectos.delay.delayTime.rampTo(segundosDelay(bpm), 0.15); // el delay sigue al tempo
-  for (const voz of voces.values()) voz.phaser.lfo.frequency.rampTo(hzPhaser(bpm), 0.15); // y el phaser
+  alinearTransporte(); // y la posición vuelve a coincidir con el pulso del servidor
 }
+
+// =====================================================================
+// ALINEACIÓN CON EL RELOJ COMPARTIDO (reloj.js). Lo que importa es lo que SE OYE: con
+// getOutputTimestamp el navegador dice qué instante del audio está saliendo por el parlante ahora
+// (incluye la latencia de salida). Para un instante C del audio un poco en el futuro: se calcula a
+// qué hora del servidor se va a oír, qué pulso corresponde a esa hora (el ancla del servidor) y se
+// compara con el pulso del Transport en C. Si difieren más de 3 ms, se corrige la posición del
+// Transport en C (y se reinician sus bucles para que sigan en la cuadrícula, como hace Tone al mover
+// la posición). Se revisa cada segundo y en cada cambio de tempo o de ancla.
+// =====================================================================
+function tiempoAudible(ctx = Tone.getContext().rawContext) {
+  const ts = ctx.getOutputTimestamp?.();
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+  return ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
+}
+// instante del audio (s) → hora del servidor (ms) en que se oye
+function horaServidorDe(C) {
+  const ctx = Tone.getContext().rawContext;
+  const ts = ctx.getOutputTimestamp?.();
+  const local = ts && ts.contextTime > 0 && ts.performanceTime > 0
+    ? ts.performanceTime + (C - ts.contextTime) * 1000
+    : performance.now() + (C - ctx.currentTime + (ctx.outputLatency || ctx.baseLatency || 0)) * 1000;
+  return performance.timeOrigin + local + (reloj.ahoraServidor() - (performance.timeOrigin + performance.now()));
+}
+const estadoAlineacion = { correcciones: 0, ultimoErrorMs: null };
+function alinearTransporte() {
+  if (!iniciado || !reloj.sincronizado()) return;
+  const tr = Tone.getTransport();
+  if (tr.state !== 'started' || !tr._clock?.setTicksAtTime) return;
+  const b = reloj.bpm();
+  if (b && Math.abs(tr.bpm.getValueAtTime(Tone.now()) - b) > 1e-6) { tempo = b; tr.bpm.cancelScheduledValues(Tone.now()); tr.bpm.setValueAtTime(b, Tone.now()); }
+  const C = Tone.now() + 0.05;
+  const objetivo = reloj.pulsosServidor(horaServidorDe(C)) * PPQ;
+  const actual = tr.getTicksAtTime(C);
+  if (!Number.isFinite(objetivo) || !Number.isFinite(actual)) return;
+  const errorMs = (actual - objetivo) / PPQ * 60000 / (b || tempo);
+  estadoAlineacion.ultimoErrorMs = +errorMs.toFixed(2);
+  if (Math.abs(errorMs) <= 3) return;
+  tr.emit('stop', C);
+  tr._clock.setTicksAtTime(Math.max(objetivo, 0), C);
+  tr.emit('start', C, tr._clock.getSecondsAtTime(C)); // los bucles (Tone.Loop) se reprograman desde ahí
+  estadoAlineacion.correcciones++;
+}
+reloj.alCambiar(() => alinearTransporte());
+// Para comparar dispositivos: a qué hora del servidor (ms) se oye el pulso número n (en negras).
+export function horaDelPulso(n) {
+  const tr = Tone.getTransport();
+  if (!iniciado || !tr._clock) return null;
+  const C = tr._clock._tickSource.getTimeOfTick(n * PPQ);
+  return horaServidorDe(C);
+}
+export const diagnosticoAlineacion = () => ({ ...estadoAlineacion, reloj: reloj.diagnostico() });
 
 export function fijarEscala(nueva) {
   escala = { tonica: nueva?.tonica in TONICAS ? nueva.tonica : 'C', modo: nueva?.modo in MODOS ? nueva.modo : 'eolico' };
@@ -861,7 +924,11 @@ function acentoSeguro(inst, voz, fuerza) {
 }
 
 // Pulso común (negras desde el inicio): sincroniza los movimientos de los FX con el tempo.
+// La parte visual usa el pulso del servidor en este instante (el mismo en todos los dispositivos, y el
+// que se oye, porque el Transport está alineado a lo que sale por el parlante).
 export function pulsos() {
+  const p = reloj.pulsosServidor();
+  if (p !== null && reloj.sincronizado()) return p;
   if (iniciado) return Tone.getTransport().ticks / PPQ;
   return performance.now() / 1000 * tempo / 60;
 }

@@ -44,6 +44,7 @@ Director (teclado):
 - El final es un "wash": durante el fundido (20 s por defecto) el sonido directo se apaga, los envíos a una reverb larga del final y al delay suben (el feedback del delay hasta 0,7), desde la mitad no hay notas nuevas y los fantasmas se intensifican mientras las gemas se vuelven polvo; las colas suenan unos 8 s más y luego la salida queda en silencio total. Igual en estéreo, en 5.1 y en la grabación.
 - Controles de vida de los módulos (estado *Todo*): segundos sin interacción antes de disolverse, duración de la disolución y del final.
 - **V**: panel de ajustes visuales. **C**: recentrar la cámara.
+- **D** (o `?vista=domo` en la dirección): vista domo, solo en ese dispositivo. Dibuja un *dome master* (ojo de pez equidistante de 180°, frente abajo) para el proyector del domo; resolución, elevación mínima, tamaño, rotación y espejo en el panel V. **T**: carta de ajuste. **Shift+D**: simulador de la cúpula, que se recorre arrastrando.
 - Los atajos no actúan mientras se escribe en un campo de texto.
 
 ## Ajustes visuales
@@ -59,6 +60,7 @@ Todos los valores por defecto (material, nubes, gelatina, postproducción) está
 - `src/editor.js`: panel de edición de cada módulo.
 - `src/vigilante.worklet.js`: vigilante de cada módulo (limpia NaN y mide su salida; audio.js reconstruye el módulo si se rompe).
 - `src/estres.js`: prueba de estrés del audio, solo con `npm run dev`: abre http://localhost:5173/?estres=5 y haz un clic.
+- `src/cupula.js`: vista domo (cubo + ojo de pez, carta de ajuste y simulador). `src/reloj.js`: reloj compartido con el servidor (todos los dispositivos en fase).
 - `src/lfo.js`: LFO (ondas sobre el reloj del tempo). `src/envolvente.js`: el macro Amplitud (Env). `src/movimiento.js`: cómo cada parámetro mueve la gema. `src/fantasmas.js`: fantasmas de la reverb, del delay y del phaser. `src/grabacion.js`, `src/grabador.worklet.js` y `src/grabador.worker.js`: grabación (tecla R).
 - `src/azar.js`: patrones aleatorios con criterio musical (botón ALEATORIO).
 - `src/escena.js`: render, cámara, luces, entornos de reflejo y postproducción.
