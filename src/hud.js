@@ -1,22 +1,29 @@
 // HUD: formatos, cursores de retícula, registro de misión y telemetría.
 
-export const MODULOS = { percusion: 'MOD-PERC', armonia: 'MOD-ARM', melodia: 'MOD-MEL' };
+// Nombre de cada módulo (panel de edición y registro) y etiqueta corta bajo cada gema
+export const MODULOS = { percusion: 'Percusión', armonia: 'Armonía', melodia: 'Melodía' };
+export const ETIQUETAS = { percusion: 'perc', armonia: 'arm', melodia: 'mel' };
 
-// Escalas que ofrece la consola. tonica y modo son los valores que entiende el servidor.
-export const ESCALAS = [
-  { tonica: 'C', modo: 'menor' },
-  { tonica: 'D', modo: 'dorico' },
-  { tonica: 'E', modo: 'frigio' },
-  { tonica: 'F', modo: 'lidio' },
-  { tonica: 'A', modo: 'pentatonica' },
-];
+// ¿El foco está en un campo donde se escribe? Entonces se ignoran los atajos de teclado.
+// (Un deslizador o un botón no cuentan.)
+export const escribiendo = (t) => !!t && (t.isContentEditable || ['TEXTAREA', 'SELECT'].includes(t.tagName)
+  || (t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t.type)));
+
+// Tonalidad y modo de la consola del director (la escala es la combinación de los dos).
+// Las claves son los valores que entiende el servidor.
 const SOLFEO = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
-const MODOS = {
-  mayor: 'mayor', menor: 'menor', dorico: 'dórico', frigio: 'frigio', lidio: 'lidio',
-  mixolidio: 'mixolidio', locrio: 'locrio', pentatonica: 'pentatónica', blues: 'blues',
-};
+export const TONALIDADES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+export const nombreNota = (t) => (SOLFEO[t[0]] || t) + (t[1] === '#' ? '♯' : '');
+// [clave, nombre en la telemetría, texto del botón]
+export const MODOS = [
+  ['jonico', 'jónico', 'Jónico (mayor)'], ['dorico', 'dórico', 'Dórico'], ['frigio', 'frigio', 'Frigio'],
+  ['lidio', 'lidio', 'Lidio'], ['mixolidio', 'mixolidio', 'Mixolidio'], ['eolico', 'eólico', 'Eólico (menor)'],
+  ['locrio', 'locrio', 'Locrio'], ['pentatonica_mayor', 'pentatónica mayor', 'Pentatónica mayor'],
+  ['pentatonica_menor', 'pentatónica menor', 'Pentatónica menor'],
+];
+const NOMBRE_MODO = Object.fromEntries(MODOS.map(([k, n]) => [k, n]));
 export function nombreEscala({ tonica, modo }) {
-  return (SOLFEO[tonica[0]] || tonica) + tonica.slice(1) + ' ' + (MODOS[modo] || modo);
+  return nombreNota(tonica) + ' ' + (NOMBRE_MODO[modo] || modo);
 }
 
 export const coord = (v) => (v >= 0 ? '+' : '-') + Math.abs(v).toFixed(2).padStart(5, '0');

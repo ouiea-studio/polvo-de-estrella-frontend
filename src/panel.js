@@ -1,19 +1,19 @@
-// Panel de ajustes (lil-gui). Oculto por defecto: se muestra y oculta con la tecla H.
+// Panel de ajustes visuales (lil-gui). Oculto por defecto: se muestra y oculta con la tecla V.
 
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import { params, aplicarPost, PRESETS_VIDRIO } from './escena.js';
 import { aplicarVidrio, aplicarNubes, guardarMaterial } from './gemas.js';
-import { registrar } from './hud.js';
+import { registrar, escribiendo } from './hud.js';
 
 const NOMBRES = { percusion: 'Percusión', armonia: 'Armonía', melodia: 'Melodía' };
 
 // acciones: { imprimirPiezas(), golpe(), ajustarTamano() }
 export function crearPanel(acciones) {
-  const gui = new GUI({ title: 'Ajustes · H para ocultar' });
+  const gui = new GUI({ title: 'Ajustes visuales · V para ocultar' });
   gui.hide();
   window.addEventListener('keydown', (ev) => {
-    if (ev.key.toLowerCase() !== 'h' || ev.metaKey || ev.ctrlKey || ev.altKey) return;
-    if (ev.target.closest?.('input, textarea')) return;
+    if (ev.key.toLowerCase() !== 'v' || ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat) return;
+    if (escribiendo(ev.target)) return;
     gui.show(gui._hidden);
   });
 

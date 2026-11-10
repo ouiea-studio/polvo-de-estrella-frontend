@@ -2,17 +2,18 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OnlineBandApp · Estación 01</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Polvo de Estrella · Estación 01</title>
   <!-- Tipografías del HUD: Michroma (títulos) e IBM Plex Mono (telemetría) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400&family=Michroma&display=swap">
 </head>
-<body>
+<body data-interfaz="modulos">
+  <!-- Estados de la interfaz (tecla H): "modulos" (por defecto) → "todo" (controles del director) → "nada" -->
   <div id="hud">
     <div id="mision">
-      <h1>Online Band <i>·</i> Estación 01</h1>
+      <h1>Polvo de Estrella <i>·</i> Estación 01</h1>
       <div id="telemetria">
         <span><b>BPM</b><em id="t-bpm">---</em></span>
         <span><b>Escala</b><em id="t-escala">---</em></span>
@@ -22,8 +23,17 @@
       </div>
       <!-- Controles globales: cualquiera puede cambiarlos y cambian para todos -->
       <div id="consola">
-        <label class="fila"><b>Tempo</b><input id="c-tempo" type="range" min="60" max="180" step="1" value="120"></label>
-        <div class="fila"><b>Escala</b><div id="c-escalas"></div></div>
+        <label class="fila"><b>Tempo</b><input id="c-tempo" type="range" min="60" max="180" step="1" value="70"></label>
+        <div class="fila"><b>Tonalidad</b><div id="c-tonalidad" class="c-escalas"></div></div>
+        <div class="fila"><b>Modo</b><div id="c-modo" class="c-escalas"></div></div>
+        <!-- Vida de los módulos: segundos sin interacción antes de disolverse y duración de la disolución -->
+        <label class="fila"><b>Inactividad</b><input id="c-inactividad" class="deslizador" type="range" min="5" max="180" step="1"><em id="v-inactividad">45 s</em></label>
+        <label class="fila"><b>Disolución</b><input id="c-disolucion" class="deslizador" type="range" min="1" max="30" step="0.5"><em id="v-disolucion">2.5 s</em></label>
+        <label class="fila"><b>Final</b><input id="c-final" class="deslizador" type="range" min="5" max="120" step="1"><em id="v-final">20 s</em></label>
+        <div class="fila"><b>Obra</b>
+          <button id="b-final" class="boton" type="button">Final · F</button>
+          <button id="b-reabrir" class="boton" type="button" disabled>Reabrir</button>
+        </div>
       </div>
     </div>
 
@@ -31,35 +41,40 @@
       <b>Identificador</b>
       <h2 id="mi-indicativo">Enlazando…</h2>
       <span id="enlace">Enlace · buscando estación</span>
-      <!-- Primer clic: enciende el audio (los navegadores lo exigen). Después: silencio personal. -->
+      <!-- Solo en el computador del director (estado "Todo"): hace sonar la música. Los demás nunca suenan. -->
       <button id="b-audio" class="boton" type="button">Escuchar</button>
+      <!-- Grabación (tecla R): punto rojo parpadeante y tiempo. Se oculta con H, pero sigue grabando. -->
+      <div id="rec" hidden><i></i>REC <span id="rec-tiempo">00:00:00</span></div>
     </div>
 
     <svg id="rastreo-linea"><polyline id="r-linea"></polyline><circle id="r-punto" r="6"></circle></svg>
     <div id="rastreo" hidden>
       <div id="rastreo-datos"></div>
       <div id="rastreo-editor"></div>
-      <button id="rastreo-borrar" class="boton" type="button" hidden>Desacoplar · Supr</button>
+      <button id="rastreo-borrar" class="boton" type="button" hidden>Eliminar</button>
     </div>
-
-    <div id="registro"><div class="tit">Registro de misión</div><ul id="registro-lista"></ul></div>
 
     <!-- Marcas del paneo sobre el plano: izquierda y derecha (las posiciona main.js) -->
     <div class="marca-paneo" id="marca-i">I</div>
     <div class="marca-paneo" id="marca-d">D</div>
 
-    <div id="vista"><button id="b-recentrar" class="boton" type="button">Recentrar · C</button></div>
-
-    <div id="acople">
-      <div class="tit">Acoplar módulo</div>
-      <div class="botones">
-        <button class="boton" type="button" data-tipo="percusion">Perc</button>
-        <button class="boton" type="button" data-tipo="armonia">Arm</button>
-        <button class="boton" type="button" data-tipo="melodia">Mel</button>
+    <!-- Franja de abajo: registro (izquierda), bloque de módulos (centro) y ayuda (derecha), cada uno en
+         su columna: nunca se enciman. En pantallas medianas registro y ayuda suben a una fila propia. -->
+    <div id="pie">
+      <div id="registro"><div class="tit">Registro de misión</div><ul id="registro-lista"></ul></div>
+      <div id="acople">
+        <div class="tit">Módulo</div>
+        <div class="botones">
+          <button class="boton" type="button" data-tipo="percusion">Percusión</button>
+          <button class="boton" type="button" data-tipo="armonia">Armonía</button>
+          <button class="boton" type="button" data-tipo="melodia">Melodía</button>
+        </div>
       </div>
+      <div id="ayuda"><span>Clic: seleccionar</span> <span>· arrastrar módulo propio: reubicar</span> <span>· Supr: eliminar</span>
+        <span>· arrastrar el vacío: orbitar</span> <span>· rueda: acercar</span> <span>· C: recentrar</span>
+        <span>· H: interfaz (módulos · todo · nada)</span> <span>· V: ajustes visuales</span> <span>· A: salida</span>
+        <span>· R: grabar</span> <span>· F (2 s): final</span></div>
     </div>
-
-    <div id="ayuda">Clic: seleccionar · arrastrar módulo propio: reubicar · Supr: desacoplar<br>arrastrar el vacío: orbitar · rueda: acercar · C: recentrar · H: ajustes</div>
   </div>
   <div id="error"></div>
   <script type="module" src="/src/main.js"></script>

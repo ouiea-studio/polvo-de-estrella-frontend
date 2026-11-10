@@ -1,6 +1,6 @@
-# OnlineBand · frontend
+# Polvo de Estrella · frontend
 
-Interfaz de **OnlineBandApp**, una app web de creación musical colectiva en tiempo real. Cada persona entra a una sala global como tripulante y acopla instrumentos (percusión, armonía y melodía), que se ven como gemas de vidrio metálico flotando en el espacio exterior, con estética de fotografía de los 80 y un HUD aeroespacial.
+Interfaz de **Polvo de Estrella** (nombre técnico del proyecto: OnlineBandApp), una app web de creación musical colectiva en tiempo real pensada como instalación interactiva para el domo del Planetario de Bogotá. Cada persona entra desde su celular o computador como tripulante y crea módulos (percusión, armonía y melodía), que se ven como gemas de vidrio metálico flotando en el espacio exterior, con estética de fotografía de los 80 y un HUD aeroespacial. El sonido sale solo del computador del director (el del domo, en 5.1).
 
 Hecho con Vite, Three.js, Socket.IO y Tone.js. Cada navegador genera la mezcla completa a partir del estado compartido: no se transmite audio. Necesita el servidor [onlineband-backend](https://github.com/ouiea-studio/onlineband-backend).
 
@@ -27,15 +27,24 @@ Hay un ejemplo en `.env.example`. Como es una variable de Vite, se lee al constr
 
 ## Cómo se usa
 
-- **ESCUCHAR / SILENCIAR** (arriba a la derecha): el primer clic enciende el audio; después silencia solo lo que escuchas tú.
-- **PERC, ARM, MEL** (abajo a la derecha): acoplar un módulo; llega con un patrón que suena de inmediato.
-- **Clic en una pieza propia**: abre su editor (pasos, subdivisión, cuadrícula de notas, ALEATORIO, parámetros, resonancia y envíos a la reverb y al delay compartidos).
-- **RECENTRAR** o tecla **C**: vuelve la cámara a la vista inicial.
-- Los anillos del plano marcan el volumen (más cerca del centro, más fuerte) y las marcas **I** / **D** el paneo.
-- **Arrastrar** una pieza propia: moverla; el paneo y el volumen dependen de su posición.
-- **Supr** o el botón de la etiqueta: desacoplar la pieza seleccionada.
-- **Tempo y escala** (arriba a la izquierda): cambian para todos.
-- **H**: panel de ajustes visuales.
+Tripulantes (celular o computador):
+- **Percusión, Armonía, Melodía** (abajo, al centro): crear un módulo; llega con un patrón que suena de inmediato.
+- **Tocar o hacer clic en una pieza propia**: abre su panel de edición (en el celular, una hoja abajo): pasos, ALEATORIO, figura (corchea, semicorchea o tresillo), cuadrícula de notas, los controles del instrumento Amplitud (Env) de corto a largo, LFO junto a Filtro y Amplitud en armonía y melodía (forma de onda y un solo deslizador de profundidad y velocidad al tempo; la percusión no tiene LFO), FX (cada módulo nace con uno al azar y poca cantidad; reverb y delay con sus fantasmas, phaser con su órbita y un halo gelatinoso) y Espacio (la gema gira alrededor de su lugar y el sonido gira por la sala).
+- **Arrastrar** una pieza propia: moverla. El volumen depende de su distancia al centro y el lugar en el domo, de su posición.
+- **Eliminar** (o **Supr**): quitar la pieza seleccionada. Tocar el espacio vacío cierra el panel.
+- Los dispositivos de los tripulantes no suenan: el motor de audio corre en silencio para que las gemas reaccionen a las notas.
+- Armonía y melodía nacen con una secuencia al azar, distinta cada vez.
+- Si un módulo pasa 45 s sin que su dueño lo toque, se disuelve en polvo de estrella; tocarlo a tiempo lo revive. Máximo 3 módulos vivos por dispositivo. Las gemas chocan y suenan al chocar.
+
+Director (teclado):
+- **H**: rota la interfaz entre *Módulos* (por defecto), *Todo* (título, telemetría, tempo, tonalidad y modo, ESCUCHAR, registro y ayuda) y *Nada* (solo las figuras).
+- **ESCUCHAR / SILENCIAR** (estado *Todo*): hace sonar este computador.
+- **A**: panel SALIDA · DOMO (dispositivo, prueba de canales, estéreo o 5.1, carpeta de grabación).
+- **R**: grabar / detener (6 WAV mono del 5.1 + 1 binaural, 48 kHz / 24 bits). **F** (mantener 2 s) o **FINAL**: final de la obra; **REABRIR** la vuelve a abrir.
+- El final es un "wash": durante el fundido (20 s por defecto) el sonido directo se apaga, los envíos a una reverb larga del final y al delay suben (el feedback del delay hasta 0,7), desde la mitad no hay notas nuevas y los fantasmas se intensifican mientras las gemas se vuelven polvo; las colas suenan unos 8 s más y luego la salida queda en silencio total. Igual en estéreo, en 5.1 y en la grabación.
+- Controles de vida de los módulos (estado *Todo*): segundos sin interacción antes de disolverse, duración de la disolución y del final.
+- **V**: panel de ajustes visuales. **C**: recentrar la cámara.
+- Los atajos no actúan mientras se escribe en un campo de texto.
 
 ## Ajustes visuales
 
@@ -44,8 +53,13 @@ Todos los valores por defecto (material, nubes, gelatina, postproducción) está
 ## Archivos
 
 - `src/main.js`: conexión con el servidor, estado de la sala e interacción.
-- `src/audio.js`: sonido con Tone.js (Transport, escalas, instrumentos y mezcla espacial).
-- `src/editor.js`: editor de pasos y parámetros de cada instrumento.
+- `src/audio.js`: sonido con Tone.js (Transport, escalas, instrumentos, voicings, filtro, phaser y niveles).
+- `src/salida.js`: salida de audio (dispositivo, estéreo o 5.1, limitador enlazado, prueba de canales).
+- `src/domo.js`: panel SALIDA · DOMO (tecla A). `src/limitador.worklet.js`: limitador multicanal.
+- `src/editor.js`: panel de edición de cada módulo.
+- `src/vigilante.worklet.js`: vigilante de cada módulo (limpia NaN y mide su salida; audio.js reconstruye el módulo si se rompe).
+- `src/estres.js`: prueba de estrés del audio, solo con `npm run dev`: abre http://localhost:5173/?estres=5 y haz un clic.
+- `src/lfo.js`: LFO (ondas sobre el reloj del tempo). `src/envolvente.js`: el macro Amplitud (Env). `src/movimiento.js`: cómo cada parámetro mueve la gema. `src/fantasmas.js`: fantasmas de la reverb, del delay y del phaser. `src/grabacion.js`, `src/grabador.worklet.js` y `src/grabador.worker.js`: grabación (tecla R).
 - `src/azar.js`: patrones aleatorios con criterio musical (botón ALEATORIO).
 - `src/escena.js`: render, cámara, luces, entornos de reflejo y postproducción.
 - `src/gemas.js`: material de vidrio, movimiento gelatinoso y nube interior.

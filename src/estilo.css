@@ -1,4 +1,4 @@
-/* HUD: identidad aeroespacial de los 80 (migrado de preview/index.html) */
+/* Polvo de Estrella · HUD: identidad aeroespacial de los 80 (migrado de preview/index.html) */
 :root { --claro: #dfe6ff; --tenue: rgba(223, 230, 255, .45); --linea: rgba(223, 230, 255, .28);
         --magenta: #ff3fa4; --cian: #2fe6ff; --dorado: #ffc247;
         --mio: var(--cian); /* color del tripulante: lo fija el servidor */ }
@@ -9,11 +9,15 @@ canvas { display: block; }
 
 #hud { position: fixed; inset: 0; pointer-events: none; color: var(--claro); text-transform: uppercase;
   font: 300 10px/1.7 "IBM Plex Mono", ui-monospace, Menlo, monospace; letter-spacing: .22em; }
-#mision { position: absolute; left: 22px; top: 18px; }
+/* Columna izquierda arriba: no pasa del espacio libre (a la derecha queda el panel de edición y por
+   debajo la franja del pie); si no cabe, scroll propio. Las medidas las pone acomodarHud() en main.js. */
+#mision { position: absolute; left: 22px; top: 18px; box-sizing: border-box; max-width: var(--ancho-mision, 640px);
+  max-height: calc(100% - 18px - var(--alto-pie, 110px)); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+#mision.desborda { pointer-events: auto; }
 #mision h1 { margin: 0 0 9px; padding-bottom: 8px; border-bottom: 1px solid var(--linea);
   font: 400 12px/1 "Michroma", "Helvetica Neue", Arial, sans-serif; letter-spacing: .34em; }
 #mision h1 i { font-style: normal; color: var(--magenta); }
-#telemetria { display: flex; gap: 22px; }
+#telemetria { display: flex; flex-wrap: wrap; gap: 4px 22px; }
 #telemetria span { display: flex; flex-direction: column; }
 #telemetria b { font-weight: 300; font-size: 8px; color: var(--tenue); }
 #telemetria em { font-style: normal; font-size: 11px; }
@@ -21,40 +25,67 @@ canvas { display: block; }
 #telemetria span:nth-child(4) em { color: var(--cian); }
 #rastreo-linea { position: absolute; inset: 0; width: 100%; height: 100%; }
 #rastreo-linea * { fill: none; stroke: var(--acento, var(--cian)); stroke-width: 1; vector-effect: non-scaling-stroke; }
-#rastreo { position: absolute; left: 0; top: 0; min-width: 190px; padding: 7px 10px 8px;
-  border: 1px solid var(--linea); border-left: 1px solid var(--acento, var(--cian)); background: rgba(2, 2, 8, .35); }
+/* Panel de edición: fijo en el lado derecho (la línea fina lo une con la gema seleccionada) */
+#rastreo { position: fixed; top: var(--sup-der, 16px); right: 16px; left: auto; width: 304px; box-sizing: border-box; padding: 9px 12px 10px;
+  border: 1px solid var(--linea); border-left: 1px solid var(--acento, var(--cian)); background: rgba(2, 2, 8, .82);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+/* en "Todo" empieza debajo de ESCUCHAR y del indicador REC (--sup-der, medido en main.js) */
 #rastreo h2 { margin: 0 0 4px; font: 400 10px/1.5 "Michroma", "Helvetica Neue", Arial, sans-serif;
   letter-spacing: .3em; color: var(--acento, var(--cian)); }
 #rastreo-datos div { display: flex; justify-content: space-between; gap: 18px; }
 #rastreo-datos div b { font-weight: 300; color: var(--tenue); }
 #rastreo-borrar { margin-top: 7px; width: 100%; }
-#registro { position: absolute; left: 22px; bottom: 18px; }
+/* Franja de abajo: tres columnas (registro · módulos · ayuda); la del centro manda */
+#pie { position: absolute; left: 22px; right: 22px; bottom: calc(18px + env(safe-area-inset-bottom)); display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: "registro acople ayuda"; column-gap: 24px; align-items: end; }
+#registro { grid-area: registro; justify-self: start; min-width: 0; max-width: 100%; }
+#registro li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tit { font: 400 8px/1 "Michroma", "Helvetica Neue", Arial, sans-serif; letter-spacing: .34em; color: var(--tenue);
   padding-bottom: 7px; margin-bottom: 6px; border-bottom: 1px solid var(--linea); }
 #registro ul { list-style: none; margin: 0; padding: 0; }
 #registro li { color: var(--tenue); }
 #registro li:last-child { color: var(--claro); }
 #registro li b { font-weight: 300; color: var(--dorado); margin-right: 12px; }
-.etiqueta { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 9px; color: var(--tenue);
-  padding-top: 5px; border-top: 1px solid var(--linea); }
+.etiqueta { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 10px; color: var(--tenue);
+  padding-top: 5px; border-top: 1px solid var(--linea); text-transform: none; letter-spacing: .18em; }
 .etiqueta b { font-weight: 400; color: var(--acento, var(--claro)); }
-#ayuda { position: absolute; right: 22px; bottom: 18px; font-size: 8px; color: var(--tenue); text-align: right; }
+#ayuda { grid-area: ayuda; justify-self: end; min-width: 0; max-width: 100%; font-size: 8px; line-height: 1.8; color: var(--tenue); text-align: right; }
+#ayuda span { display: inline-block; white-space: nowrap; } /* se reacomoda entre frases, nunca a media frase */
 
 /* ---------- Controles (V1) ---------- */
 .boton { pointer-events: auto; cursor: pointer; padding: 6px 12px; background: rgba(2, 2, 8, .35);
   border: 1px solid var(--linea); color: var(--claro); text-transform: uppercase;
   font: 300 10px/1.4 "IBM Plex Mono", ui-monospace, Menlo, monospace; letter-spacing: .22em;
   transition: border-color .15s, color .15s; }
-.boton:hover { border-color: var(--mio); color: var(--mio); }
+@media (hover: hover) { .boton:hover { border-color: var(--mio); color: var(--mio); } } /* en táctil el hover queda pegado */
 .boton.activo { border-color: var(--dorado); color: var(--dorado); }
 .boton:disabled { opacity: .35; cursor: default; }
 .boton:focus-visible { outline: 1px solid var(--dorado); outline-offset: 2px; }
 
-#consola { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--linea); display: grid; gap: 7px; }
+#consola { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--linea); display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; } /* nunca más ancha que su lugar */
 #consola .fila { display: flex; align-items: center; gap: 14px; }
-#consola .fila > b { width: 52px; font-weight: 300; font-size: 8px; color: var(--tenue); }
-#c-escalas { display: flex; flex-wrap: wrap; gap: 5px; }
-#c-escalas .boton { padding: 3px 8px; font-size: 9px; }
+#consola .fila > b { width: 84px; flex: none; white-space: nowrap; font-weight: 300; font-size: 8px; letter-spacing: .16em; color: var(--tenue); }
+#consola .fila > em { font-style: normal; font-size: 9px; min-width: 40px; }
+#consola .deslizador { width: 160px; }
+#b-final.alerta { border-color: var(--magenta); color: var(--magenta); }
+/* REC: punto rojo parpadeante con el tiempo de grabación */
+#rec { margin-top: 8px; align-self: flex-end; font-size: 10px; letter-spacing: .24em; color: var(--claro); display: flex; align-items: center; gap: 7px; }
+#rec[hidden] { display: none; }
+#rec i { width: 8px; height: 8px; border-radius: 50%; background: #ff2a3a; box-shadow: 0 0 8px #ff2a3a; opacity: .35; }
+#rec.grabando i { animation: rec-parpadeo 1s steps(1) infinite; opacity: 1; }
+@keyframes rec-parpadeo { 50% { opacity: .15; } }
+/* Estación cerrada: los tripulantes solo ven el polvo flotando */
+body[data-obra="cerrada"]:not([data-interfaz="todo"]) #acople { display: none; }
+/* en "Todo" la consola del director es más alta: el panel A empieza debajo */
+body[data-interfaz="todo"] #domo { top: var(--sup-domo, 236px); max-height: calc(100% - var(--sup-domo, 236px) - var(--alto-pie, 110px)); }
+/* Tonalidad (12 notas, 6 por fila) y modo (3 por fila, o 2 en pantallas angostas) */
+#consola .fila:has(.c-escalas) { align-items: flex-start; }
+#consola .fila:has(.c-escalas) > b { padding-top: 5px; flex: none; }
+.c-escalas { display: grid; gap: 4px; flex: 1; min-width: 0; max-width: 340px; }
+#c-tonalidad { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+#c-modo { grid-template-columns: repeat(auto-fill, minmax(106px, 1fr)); } /* 3 por fila; 2 si no caben */
+.c-escalas .boton { padding: 3px 2px; font-size: 9px; letter-spacing: .1em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#c-modo .boton { font-size: 8px; letter-spacing: .06em; }
 
 /* Deslizadores (tempo y parámetros): una línea fina con un marcador cuadrado dorado */
 #c-tempo, .deslizador { pointer-events: auto; cursor: pointer; width: 220px; margin: 0; height: 14px; background: none;
@@ -76,33 +107,79 @@ canvas { display: block; }
 #b-audio { margin-top: 9px; align-self: flex-end; min-width: 120px; }
 #b-audio.sonando { border-color: var(--mio); color: var(--mio); }
 
-#acople { position: absolute; right: 22px; bottom: 58px; text-align: right; }
-#vista { position: absolute; right: 22px; bottom: 128px; }
+/* Bloque de creación: centrado abajo, botones grandes (también para el dedo) */
+#acople { grid-area: acople; justify-self: center; text-align: center; }
+#acople .tit { display: inline-block; padding: 0 18px 7px; }
 .marca-paneo { position: absolute; left: 0; top: 0; font: 400 10px/1 "IBM Plex Mono", ui-monospace, Menlo, monospace;
   color: var(--tenue); opacity: .7; }
-#acople .botones { display: flex; gap: 8px; justify-content: flex-end; }
-#acople .boton { min-width: 72px; }
+#acople .botones { display: flex; gap: 10px; justify-content: center; }
+#acople .boton { min-width: 132px; padding: 12px 18px; font-size: 11px; letter-spacing: .26em; touch-action: manipulation; }
+.boton { touch-action: manipulation; }
+
+/* ---------- Estados de la interfaz (tecla H) ---------- */
+/* Módulos: solo creación, gemas y panel de la pieza */
+body[data-interfaz="modulos"] :is(#mision, #identidad, #registro, #ayuda, .marca-paneo, .marca-parlante) { display: none !important; }
+/* Nada: solo las figuras (el panel de salida, tecla A, sigue disponible si se abre) */
+body[data-interfaz="nada"] #hud > :not(#domo) { display: none !important; }
 
 /* el panel de ajustes (lil-gui) queda arriba a la derecha, bajo la identidad */
 .lil-gui.autoPlace { top: 92px; max-height: calc(100% - 110px); }
 
 /* ---------- Editor del instrumento (dentro de la etiqueta de rastreo) ---------- */
 #rastreo-editor:empty { display: none; }
+/* scroll vertical propio y nada se sale a lo ancho; termina por encima de los botones de módulo */
+#rastreo { max-height: calc(100% - var(--sup-der, 16px) - var(--alto-pie, 110px)); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+#rastreo * { min-width: 0; }
+#rastreo h2 { font-size: 11px; margin-bottom: 0; }
+#rastreo-borrar:not([hidden]) { border-color: rgba(255, 63, 164, .45); }
+@media (hover: hover) { #rastreo-borrar:hover { border-color: var(--magenta); color: var(--magenta); } }
 /* con el editor abierto la etiqueta queda encima de todo y con fondo más opaco, para leerse sobre las gemas */
 #rastreo { z-index: 2; }
 #rastreo:has(.editor) { background: rgba(2, 2, 8, .82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .editor { pointer-events: auto; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--linea);
-  display: grid; gap: 6px; font-size: 9px; }
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; font-size: 9px; width: auto; }
 .ed-fila { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ed-fila > b { width: 84px; font-weight: 300; font-size: 8px; color: var(--tenue); white-space: nowrap; }
+.ed-fila > b { width: 52px; font-weight: 300; font-size: 8px; color: var(--tenue); white-space: nowrap; }
 .ed-valor { min-width: 34px; text-align: right; color: var(--claro); }
 .editor .boton { padding: 2px 7px; font-size: 9px; letter-spacing: .16em; }
 .editor .ed-mini { padding: 0 7px; }
-.editor .ed-aleatorio { margin-left: auto; }
-.editor .deslizador { width: 140px; }
-.ed-params { display: grid; gap: 3px; padding-top: 4px; }
-.ed-rejilla { display: grid; grid-template-columns: repeat(var(--pasos), var(--celda)); gap: 2px; padding: 4px 0;
+.editor .ed-aleatorio { margin-left: auto; letter-spacing: .12em; }
+.editor .ed-figura { padding: 1px 6px; line-height: 0; }
+.ed-figura svg { width: auto; height: 17px; }
+.ed-params { display: grid; gap: 8px; padding-top: 6px; border-top: 1px solid var(--linea); }
+/* cada control: nombre corto arriba, deslizador y una pista en cada extremo */
+.ed-control { display: grid; gap: 3px; }
+.ed-titulo { display: flex; justify-content: space-between; align-items: baseline; }
+.ed-titulo b { font-weight: 400; font-size: 8px; color: var(--claro); }
+.ed-titulo .ed-valor { min-width: 0; color: var(--dorado); text-transform: none; letter-spacing: .08em; }
+.editor .ed-control .deslizador { width: 100%; height: 18px; }
+.ed-pista { display: flex; justify-content: space-between; gap: 8px; font-size: 7px; color: var(--tenue); text-transform: none; letter-spacing: .08em; margin-top: -3px; }
+.ed-pista span:last-child { text-align: right; }
+/* Giro: marca en el 0 (centro) */
+.ed-con-cero { position: relative; }
+.ed-con-cero .deslizador { width: 100%; }
+.ed-cero { position: absolute; left: 50%; top: 2px; bottom: 2px; width: 1px; background: var(--claro); opacity: .55; transform: translateX(-50%); pointer-events: none; }
+.ed-opciones { display: flex; flex-wrap: wrap; gap: 4px; }
+.ed-opciones .boton { flex: 1 1 0; text-align: center; padding: 3px 2px; letter-spacing: .1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor .ed-onda { line-height: 0; }
+.ed-onda svg { width: 28px; height: 13px; }
+.ed-seccion { font: 400 8px/1 "Michroma", "Helvetica Neue", Arial, sans-serif; letter-spacing: .3em; color: var(--tenue); }
+/* LFO junto a un parámetro: una fila compacta (LFO · formas · deslizador · velocidad) */
+.ed-lfo-fila { display: flex; align-items: center; gap: 5px; margin-top: 2px; padding-left: 7px; border-left: 1px solid var(--linea); }
+/* punto que late con el valor del LFO */
+.ed-latido { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--dorado); box-shadow: 0 0 6px var(--dorado); opacity: .15; transform: scale(.6); }
+.ed-lfo-fila > b { font-weight: 300; font-size: 7px; color: var(--tenue); letter-spacing: .2em; }
+.ed-lfo-fila.ed-lfo-activo { border-left-color: var(--dorado); }
+.ed-lfo-fila.ed-lfo-activo > b { color: var(--dorado); }
+.ed-formas { display: flex; gap: 3px; }
+.editor .ed-formas .boton { padding: 1px 3px; }
+.ed-formas .ed-onda svg { width: 18px; height: 9px; }
+.editor .ed-lfo-fila .deslizador { flex: 1; min-width: 0; width: auto; height: 16px; }
+.ed-lfo-fila .ed-valor { width: 58px; flex: none; text-align: right; font-size: 7px; color: var(--tenue); text-transform: none; letter-spacing: .04em; white-space: nowrap; }
+.ed-lfo-activo .ed-valor { color: var(--dorado); }
+.ed-rejilla { display: grid; grid-template-columns: repeat(var(--pasos), minmax(0, 1fr)); gap: 2px; padding: 4px 0;
   cursor: pointer; touch-action: none; }
+.ed-rejilla.ed-muchos { gap: 1px; }
 .ed-celda { height: 9px; border: 1px solid rgba(223, 230, 255, .14); background: rgba(2, 2, 8, .4); }
 .ed-una-fila .ed-celda { height: 16px; }
 .ed-celda.ed-pulso { border-color: rgba(223, 230, 255, .32); }
@@ -111,14 +188,107 @@ canvas { display: block; }
 .ed-celda.ed-on.ed-actual { background: var(--claro); }
 #rastreo-datos .ed-info { color: var(--tenue); }
 
-@media (max-width: 1100px) {
-  #ayuda { display: none; }
-  #acople { bottom: 18px; }
-  #vista { bottom: 88px; }
+/* ---------- Salida · Domo (tecla A) ---------- */
+#domo { position: absolute; left: 22px; top: 168px; z-index: 3; box-sizing: border-box; width: 402px; max-width: calc(100% - 44px);
+  max-height: calc(100% - 168px - var(--alto-pie, 110px)); overflow-y: auto; pointer-events: auto; padding: 12px 14px 14px; /* termina sobre los botones de módulo */
+  border: 1px solid var(--linea); border-left: 1px solid var(--dorado); background: rgba(2, 2, 8, .86);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#domo[hidden] { display: none; }
+.dm-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.dm-cabeza h2 { margin: 0; font: 400 11px/1 "Michroma", "Helvetica Neue", Arial, sans-serif; letter-spacing: .32em; color: var(--dorado); }
+.dm-cabeza h2 i { font-style: normal; color: var(--magenta); }
+.dm-cabeza .boton { padding: 2px 8px; font-size: 8px; }
+.dm-bloque { margin-top: 12px; }
+.dm-bloque > .tit { display: flex; justify-content: space-between; }
+details.dm-bloque > summary { cursor: pointer; list-style: none; }
+.dm-frente { color: var(--tenue); letter-spacing: .2em; }
+.dm-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.dm-fila > b { font-weight: 300; font-size: 8px; color: var(--tenue); margin-right: 6px; }
+#domo .boton { padding: 4px 9px; font-size: 9px; letter-spacing: .16em; }
+.dm-select { width: 100%; pointer-events: auto; background: rgba(2, 2, 8, .6); color: var(--claro); border: 1px solid var(--linea);
+  padding: 5px 6px; font: 300 10px/1.3 "IBM Plex Mono", ui-monospace, Menlo, monospace; letter-spacing: .04em; }
+.dm-select:focus-visible { outline: 1px solid var(--dorado); }
+.dm-nota { margin: 6px 0 0; font-size: 8px; line-height: 1.6; color: var(--tenue); text-transform: none; letter-spacing: .06em; }
+.dm-datos { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 14px; margin: 9px 0 0; }
+.dm-datos div { border-left: 1px solid var(--linea); padding-left: 7px; min-width: 0; }
+.dm-datos .dm-ancho { grid-column: 1 / -1; }
+.dm-datos dt { font-size: 7px; color: var(--tenue); }
+.dm-datos dd { margin: 0; font-size: 10px; text-transform: none; letter-spacing: .06em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-datos dd.ok { color: var(--cian); }
+.dm-datos dd.mal, .dm-aviso { color: var(--magenta); }
+.dm-aviso { margin-top: 8px; padding: 6px 8px; border: 1px solid var(--magenta); font-size: 8px; text-transform: none; letter-spacing: .06em; line-height: 1.6; }
+/* planta: frente arriba, público al centro */
+.dm-planta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+#domo .dm-canal { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 7px; text-align: left; min-width: 0; }
+.dm-id { font: 400 12px/1.2 "Michroma", "Helvetica Neue", Arial, sans-serif; letter-spacing: .1em; }
+.dm-det, .dm-db { font-size: 7px; color: var(--tenue); letter-spacing: .1em; }
+.dm-medidor { width: 100%; height: 2px; margin-top: 3px; background: var(--linea); overflow: hidden; }
+.dm-medidor i { display: block; height: 100%; width: 0; background: var(--cian); }
+#domo .dm-canal.dm-activo { border-color: var(--dorado); color: var(--dorado); box-shadow: 0 0 14px rgba(255, 194, 71, .22); }
+.dm-canal.dm-activo .dm-medidor i { background: var(--dorado); }
+.dm-pos-FL { grid-column: 1; grid-row: 1; } .dm-pos-LFE { grid-column: 2; grid-row: 1; } .dm-pos-FR { grid-column: 3; grid-row: 1; }
+.dm-pos-C { grid-column: 2; grid-row: 2; } .dm-pos-RL { grid-column: 1; grid-row: 3; } .dm-pos-RR { grid-column: 3; grid-row: 3; }
+#domo .dm-parar:not(:disabled) { border-color: var(--magenta); color: var(--magenta); }
+.dm-param { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.dm-param > b { width: 104px; flex: none; font-weight: 300; font-size: 8px; color: var(--tenue); }
+.dm-param .deslizador { width: auto; flex: 1; min-width: 0; }
+.dm-param > span { width: 58px; flex: none; text-align: right; font-size: 9px; }
+.dm-sonando { display: flex; justify-content: space-between; margin-top: 8px; font-size: 9px; }
+.dm-sonando b { font-weight: 300; font-size: 8px; color: var(--tenue); }
+#dm-sonando { color: var(--dorado); }
+.dm-barra { height: 1px; margin-top: 5px; background: var(--linea); }
+.dm-barra i { display: block; height: 100%; width: 0; background: var(--dorado); }
+.dm-restablecer { margin-top: 9px; }
+/* parlantes del domo en el radar (modo 5.1) */
+.marca-parlante { position: absolute; left: 0; top: 0; font: 400 8px/1 "Michroma", "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: .2em; color: var(--dorado); opacity: .55; }
+.marca-parlante.centro { margin-top: -14px; }
+.marca-parlante[hidden] { display: none; }
+
+/* Pantallas medianas: registro y ayuda suben a una fila propia, encima de los botones de módulo */
+@media (max-width: 1180px) {
+  #pie { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "registro ayuda" "acople acople"; }
+  #acople { margin-top: 12px; }
+  body[data-interfaz="modulos"] #acople { margin-top: 0; }
 }
+/* Celular: botones a lo ancho y el panel de edición como hoja fija abajo */
 @media (max-width: 760px) {
   #telemetria { gap: 12px; flex-wrap: wrap; }
   #c-tempo { width: 150px; }
-  #identidad { top: auto; bottom: 86px; }
+  #consola .fila { gap: 10px; }
+  #consola .fila > b { width: 70px; letter-spacing: .1em; }
+  #identidad { top: auto; bottom: var(--alto-pie, 96px); }
+  #mision { max-width: none; right: 22px; max-height: calc(100% - 18px - var(--alto-pie, 110px) - var(--alto-identidad, 0px)); }
   #registro { display: none; }
+  #pie { left: 12px; right: 12px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "ayuda" "acople"; }
+  #ayuda { justify-self: center; text-align: center; font-size: 7px; }
+  #acople { justify-self: stretch; }
+  #acople .botones { gap: 8px; }
+  #acople .boton { flex: 1; min-width: 0; padding: 14px 4px; font-size: 10px; letter-spacing: .14em; }
+  #rastreo { position: fixed; left: 0; right: 0; top: auto; bottom: 0; transform: none !important; z-index: 4;
+    max-height: 58vh; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); pointer-events: auto !important;
+    border: 0; border-top: 1px solid var(--acento, var(--cian)); background: rgba(2, 2, 8, .9);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  /* hoja abajo, también en "Todo", encima de los botones de módulo (no los tapa) */
+  body[data-interfaz] #rastreo { top: auto; width: auto; bottom: calc(var(--alto-pie, 96px) - 6px); max-height: min(58vh, calc(100% - var(--alto-pie, 96px) - 8px));
+    padding-bottom: 12px; border-bottom: 1px solid var(--linea); }
+  /* mientras se edita en el celular, los controles del director se apartan (vuelven al cerrar la hoja) */
+  body.con-panel :is(#mision, #identidad) { display: none !important; }
+  #rastreo-linea { display: none !important; }
+  .editor { width: auto; gap: 9px; }
+  .ed-celda { height: 14px; }
+  .ed-una-fila .ed-celda { height: 26px; }
+  .editor .boton { padding: 6px 9px; font-size: 10px; }
+  .ed-opciones .boton { padding: 7px 4px; }
+  .editor .ed-figura { padding: 4px 10px; }
+  .ed-figura svg { height: 20px; }
+  .editor .ed-control .deslizador { height: 28px; }
+  .editor .ed-lfo-fila .deslizador { height: 26px; }
+  .editor .ed-formas .boton { padding: 5px 6px; }
+  .ed-fila > b { width: 46px; }
+  #rastreo-borrar { padding: 10px; }
+  #domo { left: 8px; right: 8px; width: auto; max-width: none; top: 8px; max-height: calc(100% - 16px); }
+  /* marcador de los deslizadores más grande para el dedo */
+  .deslizador::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -9px; }
+  .deslizador::-moz-range-thumb { width: 16px; height: 16px; }
 }

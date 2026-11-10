@@ -55,13 +55,27 @@ scene.background = new THREE.Color(0x020208); // espacio casi negro
 
 // La cámara mira desde un poco más arriba que en la vista previa, para poder
 // arrastrar las piezas sobre el plano horizontal del universo.
-export const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 500);
-camera.position.set(0, 3.2, 11);
+// Vista inicial. En pantallas horizontales (computador): baja y frontal. En pantallas verticales
+// (celular) el campo horizontal es muy angosto: la cámara sube y se aleja para que quepa la estación
+// (unas ±6,5 unidades de ancho en el centro) y se vea más desde arriba, cómodo para tocar las piezas.
+// Proporción de la ventana; si todavía no tiene tamaño (pestaña abierta en segundo plano), 16:9.
+const proporcion = () => { const a = window.innerWidth / window.innerHeight; return Number.isFinite(a) && a > 0 ? a : 16 / 9; };
+function vistaInicial() {
+  const a = proporcion();
+  if (a >= 1) return { fov: 40, posicion: new THREE.Vector3(0, 3.2, 11) };
+  const fov = 55;
+  const d = THREE.MathUtils.clamp(6.5 / (Math.tan(THREE.MathUtils.degToRad(fov / 2)) * a), 11, 34);
+  const elevacion = THREE.MathUtils.degToRad(32);
+  return { fov, posicion: new THREE.Vector3(0, d * Math.sin(elevacion), d * Math.cos(elevacion)) };
+}
+const vista0 = vistaInicial();
+export const camera = new THREE.PerspectiveCamera(vista0.fov, proporcion(), 0.1, 500);
+camera.position.copy(vista0.posicion);
 
 export const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.minDistance = 3;
-controls.maxDistance = 28;
+controls.maxDistance = 40;
 controls.maxPolarAngle = Math.PI * 0.495; // no bajar del horizonte
 
 // --- Entorno de iluminación: da reflejos al vidrio sin mostrarse como fondo ---
@@ -214,12 +228,51 @@ scene.add(referencia);
 export const MARCAS_PANEO = { I: new THREE.Vector3(-4.5, 0, 0.6), D: new THREE.Vector3(4.5, 0, 0.6) };
 
 // =====================================================================
+// PARLANTES DEL DOMO (modo 5.1) — marcas sutiles en el radar: FL, FR, RR y RL sobre el anillo
+// exterior (con una línea muy tenue hacia el centro) y el anillo donde termina el paso por el C.
+// Acimut 0° = frente (−Z, hacia el fondo), +90° = derecha (+X). Las etiquetas de texto las pone main.js.
+// =====================================================================
+export const parlantes = new THREE.Group();
+parlantes.visible = false;
+scene.add(parlantes);
+export const POS_PARLANTES = { FL: new THREE.Vector3(), FR: new THREE.Vector3(), RR: new THREE.Vector3(), RL: new THREE.Vector3(), C: new THREE.Vector3(0, 0, 0) };
+const lineaDorada = (puntos, brillo, cerrada = false) => {
+  const material = new THREE.LineBasicMaterial({
+    color: new THREE.Color(1, 0.76, 0.28).multiplyScalar(brillo),
+    transparent: false, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const geo = new THREE.BufferGeometry().setFromPoints(puntos);
+  return cerrada ? new THREE.LineLoop(geo, material) : new THREE.LineSegments(geo, material);
+};
+// acimuts: { FL, FR, RR, RL } en grados ya girados por la orientación · radioCentro: fracción de RADIO_UNIVERSO
+export function actualizarParlantes(visible, acimuts, radioCentro) {
+  parlantes.visible = visible;
+  for (const hijo of [...parlantes.children]) { hijo.geometry.dispose(); hijo.material.dispose(); parlantes.remove(hijo); }
+  if (!visible) return;
+  const R = RADIO_UNIVERSO, rombo = [], rayos = [];
+  for (const id in acimuts) {
+    const a = THREE.MathUtils.degToRad(acimuts[id]);
+    const dir = new THREE.Vector3(Math.sin(a), 0, -Math.cos(a));
+    const lado = new THREE.Vector3(-dir.z, 0, dir.x);
+    const p = dir.clone().multiplyScalar(R);
+    POS_PARLANTES[id].copy(dir).multiplyScalar(R + 0.9);
+    // rombo pequeño sobre el anillo: el parlante
+    const v = [p.clone().addScaledVector(dir, 0.32), p.clone().addScaledVector(lado, 0.32), p.clone().addScaledVector(dir, -0.32), p.clone().addScaledVector(lado, -0.32)];
+    rombo.push(v[0], v[1], v[1], v[2], v[2], v[3], v[3], v[0]);
+    rayos.push(dir.clone().multiplyScalar(R * Math.max(radioCentro, 0.05)), p.clone().addScaledVector(dir, -0.32));
+  }
+  parlantes.add(lineaDorada(rombo, 0.42), lineaDorada(rayos, 0.05));
+  // anillo del C: dentro de este radio la pieza pasa del cenit al anillo
+  if (radioCentro > 0) parlantes.add(lineaDorada(circulo(R * radioCentro, 128), 0.09, true));
+}
+
+// =====================================================================
 // RECENTRAR — vuelve la cámara a la vista frontal inicial con una transición suave
 // =====================================================================
-const VISTA_INICIAL = { posicion: camera.position.clone(), objetivo: new THREE.Vector3(0, 0, 0) };
+const OBJETIVO_INICIAL = new THREE.Vector3(0, 0, 0);
 let transicion = null; // { desde, hasta, objetivoDesde, t }
 export function recentrar() {
-  transicion = { desde: camera.position.clone(), objetivoDesde: controls.target.clone(), t: 0 };
+  transicion = { desde: camera.position.clone(), hasta: vistaInicial().posicion, objetivoDesde: controls.target.clone(), t: 0 };
   controls.enabled = false;
   controls.enableDamping = false; // sin la inercia de la órbita anterior, que empujaría la cámara
 }
@@ -227,8 +280,8 @@ function avanzarTransicion(dt) {
   if (!transicion) return;
   transicion.t = Math.min(transicion.t + dt / 1.1, 1); // 1,1 s
   const k = transicion.t < 0.5 ? 4 * transicion.t ** 3 : 1 - (-2 * transicion.t + 2) ** 3 / 2; // suavizado de entrada y salida
-  camera.position.lerpVectors(transicion.desde, VISTA_INICIAL.posicion, k);
-  controls.target.lerpVectors(transicion.objetivoDesde, VISTA_INICIAL.objetivo, k);
+  camera.position.lerpVectors(transicion.desde, transicion.hasta, k);
+  controls.target.lerpVectors(transicion.objetivoDesde, OBJETIVO_INICIAL, k);
   if (transicion.t >= 1) { transicion = null; controls.enabled = true; controls.enableDamping = true; }
 }
 
@@ -424,8 +477,15 @@ export function ajustarTamanoEscena() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setPixelRatio(params.general.resolucion);
   composer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const vertical = camera.aspect < 1;
+  camera.aspect = proporcion();
+  camera.fov = vistaInicial().fov;
   camera.updateProjectionMatrix();
+  if (!Number.isFinite(camera.position.x + camera.position.y + camera.position.z)) {
+    camera.position.copy(vistaInicial().posicion); // por si quedó inválida (ventana sin tamaño al abrir)
+    controls.target.set(0, 0, 0);
+  }
+  if (vertical !== camera.aspect < 1) recentrar(); // al girar el celular, vuelve a la vista que corresponde
 }
 
 // Avanza todo lo que no depende de las piezas (destellos, estrellas, película) y dibuja el cuadro.
