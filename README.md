@@ -1,8 +1,8 @@
 # Polvo de Estrella · frontend
 
-Interfaz de **Polvo de Estrella** (nombre técnico del proyecto: OnlineBandApp), una app web de creación musical colectiva en tiempo real pensada como instalación interactiva para el domo del Planetario de Bogotá. Cada persona entra desde su celular o computador como tripulante y crea módulos (percusión, armonía y melodía), que se ven como gemas de vidrio metálico flotando en el espacio exterior, con estética de fotografía de los 80 y un HUD aeroespacial. El sonido sale solo del computador del director (el del domo, en 5.1).
+Interfaz de **Polvo de Estrella** (la carpeta local del proyecto se llama OnlineBandApp), una app web de creación musical colectiva en tiempo real pensada como instalación interactiva para el domo del Planetario de Bogotá. Cada persona entra desde su celular o computador como tripulante y crea módulos (percusión, armonía y melodía), que se ven como gemas de vidrio metálico flotando en el espacio exterior, con estética de fotografía de los 80 y un HUD aeroespacial. El sonido sale solo del computador del director (el del domo, en 5.1).
 
-Hecho con Vite, Three.js, Socket.IO y Tone.js. Cada navegador genera la mezcla completa a partir del estado compartido: no se transmite audio. Necesita el servidor [onlineband-backend](https://github.com/ouiea-studio/onlineband-backend).
+Hecho con Vite, Three.js, Socket.IO y Tone.js. Cada navegador genera la mezcla completa a partir del estado compartido: no se transmite audio. Necesita el servidor [polvo-de-estrella-backend](https://github.com/ouiea-studio/polvo-de-estrella-backend). Publicado en https://polvo-de-estrella.onrender.com.
 
 ## Correrlo en local
 

@@ -1,5 +1,5 @@
 {
-  "_nota": "Valores por defecto de OnlineBandApp. Se leen al cargar la página: si editas este archivo, basta con recargar. El material inicial es el preset indicado en presetVidrio; el botón 'Guardar material' del panel (tecla H) reescribe ese preset aquí.",
+  "_nota": "Valores por defecto de Polvo de Estrella. Se leen al cargar la página: si editas este archivo, basta con recargar. El material inicial es el preset indicado en presetVidrio; el botón 'Guardar material' del panel (tecla H) reescribe ese preset aquí.",
   "general": {
     "rotacion": 2.37,
     "resolucion": 1.25

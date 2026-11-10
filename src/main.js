@@ -1,4 +1,4 @@
-// Polvo de Estrella · frontend (nombre técnico del proyecto: OnlineBandApp).
+// Polvo de Estrella · frontend.
 // Conecta con el servidor, mantiene una copia local de la sala, la dibuja como gemas en el universo
 // y la hace sonar con Tone.js (audio.js). Cada tripulante solo puede mover, editar y eliminar
 // sus propias piezas; tempo y escala son de todos. El servidor manda la física (choques) y la vida

@@ -20,7 +20,7 @@ export function crearPanel(acciones) {
   gui.add({
     imprimir() {
       const texto = JSON.stringify({ ...params, piezas: acciones.imprimirPiezas() }, null, 2);
-      console.log('Valores actuales de OnlineBandApp:\n' + texto);
+      console.log('Valores actuales de Polvo de Estrella:\n' + texto);
       navigator.clipboard?.writeText(texto).catch(() => {});
     },
   }, 'imprimir').name('Imprimir valores en consola');
