@@ -252,7 +252,9 @@ function dibujarCarta() {
   c.strokeStyle = 'rgba(255,63,164,.9)'; c.beginPath(); c.moveTo(m - L / 60, m); c.lineTo(m + L / 60, m); c.moveTo(m, m - L / 60); c.lineTo(m, m + L / 60); c.stroke();
   c.font = `600 ${L / 38}px "Michroma", "Helvetica Neue", Arial, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
   for (const [txt, az] of [['FRENTE', 0], ['DERECHA', 90], ['ATRÁS', 180], ['IZQUIERDA', 270]]) {
-    const [x, y] = aLienzo(az, az % 180 ? 40 : 26, L); // los laterales, más adentro: el texto es ancho c.fillStyle = az === 0 ? 'rgba(255,194,71,1)' : 'rgba(223,230,255,.95)'; c.fillText(txt, x, y);
+    // los laterales, más adentro: el texto es ancho
+    const [x, y] = aLienzo(az, az % 180 ? 40 : 26, L);
+    c.fillStyle = az === 0 ? 'rgba(255,194,71,1)' : 'rgba(223,230,255,.95)'; c.fillText(txt, x, y);
   }
   // parlantes del domo
   const parlante = (id, x, y) => {
