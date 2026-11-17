@@ -10,6 +10,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+import { ESPECTADOR } from './parametros.js';
 import { ajustes } from './ajustes.js';
 
 // Mezcla espacial: a esta distancia en X el paneo llega a ±1, y a este radio el volumen llega a 0.
@@ -41,11 +42,24 @@ export const params = {
   post: structuredClone(ajustes.post),
 };
 
+// --- Lienzo ---
+// Normal: ocupa toda la ventana. Modo espectador (?rol=espectador, fuente de video): un CUADRADO (1:1)
+// que llena la ventana, centrado; su lado es el mayor de ancho y alto, así nunca quedan barras ni
+// márgenes (en una ventana cuadrada coincide exacto; en una rectangular se recortan los bordes que
+// sobran). La vista domo usa el mismo lado (cupula.js). x, y: esquina del lienzo en la ventana.
+export const LIENZO_CUADRADO = ESPECTADOR;
+export function areaLienzo() {
+  const W = Math.max(window.innerWidth, 1), H = Math.max(window.innerHeight, 1);
+  if (!LIENZO_CUADRADO) return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+  const L = Math.max(W, H);
+  return { x: (W - L) / 2, y: (H - L) / 2, w: L, h: L };
+}
+
 // --- Render, escena y cámara ---
 // antialias desactivado aquí: el suavizado lo hace el compositor de postproducción
 export const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(params.general.resolucion);
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(areaLienzo().w, areaLienzo().h);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
@@ -59,7 +73,7 @@ scene.background = new THREE.Color(0x020208); // espacio casi negro
 // (celular) el campo horizontal es muy angosto: la cámara sube y se aleja para que quepa la estación
 // (unas ±6,5 unidades de ancho en el centro) y se vea más desde arriba, cómodo para tocar las piezas.
 // Proporción de la ventana; si todavía no tiene tamaño (pestaña abierta en segundo plano), 16:9.
-const proporcion = () => { const a = window.innerWidth / window.innerHeight; return Number.isFinite(a) && a > 0 ? a : 16 / 9; };
+const proporcion = () => { const { w, h } = areaLienzo(); const a = w / h; return Number.isFinite(a) && a > 0 ? a : 16 / 9; };
 function vistaInicial() {
   const a = proporcion();
   if (a >= 1) return { fov: 40, posicion: new THREE.Vector3(0, 3.2, 11) };
@@ -426,7 +440,7 @@ export const composer = new EffectComposer(
   renderer,
   new THREE.WebGLRenderTarget(tam.x, tam.y, { type: THREE.HalfFloatType, samples: 4 })
 );
-const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.45, 0.65, 0.85);
+const bloom = new UnrealBloomPass(new THREE.Vector2(areaLienzo().w, areaLienzo().h), 0.45, 0.65, 0.85);
 const estrella = new FiltroEstrella();
 const lente = new ShaderPass(LentePelicula);
 // Guarda: con reflejos metálicos muy intensos algún píxel puede salir infinito o inválido (NaN);
@@ -483,10 +497,11 @@ export function ajustarTamanoEscena() {
   ajustarTamanoNormal();
 }
 export function ajustarTamanoNormal() {
+  const { w, h } = areaLienzo();
   renderer.setPixelRatio(params.general.resolucion);
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(w, h);
   composer.setPixelRatio(params.general.resolucion);
-  composer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(w, h);
   const vertical = camera.aspect < 1;
   camera.aspect = proporcion();
   camera.fov = vistaInicial().fov;

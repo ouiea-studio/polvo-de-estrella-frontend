@@ -28,8 +28,10 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import {
   renderer, scene, composer, controls, params, aplicarPost, ganchos, pasoEscena, ajustarTamanoNormal, RADIO_UNIVERSO,
+  LIENZO_CUADRADO, areaLienzo,
 } from './escena.js';
 import { escribiendo } from './hud.js';
+import { VISTA_DOMO } from './parametros.js';
 
 const CLAVE = 'polvo.vistaDomo';
 const POR_DEFECTO = {
@@ -331,7 +333,9 @@ function ajustar() {
   } else {
     renderer.setPixelRatio(1);
     renderer.setSize(R, R, false);
-    const lado = Math.min(window.innerWidth, window.innerHeight);
+    // lado en pantalla: el menor de ancho y alto (cabe entero); en modo espectador, el cuadrado que
+    // llena la ventana (escena.js, areaLienzo)
+    const lado = LIENZO_CUADRADO ? areaLienzo().w : Math.min(window.innerWidth, window.innerHeight);
     Object.assign(renderer.domElement.style, { width: lado + 'px', height: lado + 'px' });
   }
 }
@@ -373,7 +377,7 @@ let postNormal = null;
 let avisar = () => {};
 export function iniciar(opciones) {
   avisar = opciones.alCambiar || avisar;
-  const pedida = new URLSearchParams(location.search).get('vista') === 'domo';
+  const pedida = VISTA_DOMO; // ?vista=domo (parametros.js)
   if (pedida || cfg.activa) fijar(true);
 }
 export function fijar(si, conSimulador = false) {
@@ -381,7 +385,9 @@ export function fijar(si, conSimulador = false) {
   const antes = activa;
   activa = si;
   simulador = si && conSimulador;
-  cfg.activa = si;
+  // con ?vista=domo la vista la pide la dirección: no se guarda como preferencia de este navegador
+  // (así la dirección sin parámetros sigue abriendo como siempre). Calibración y resolución sí se guardan.
+  if (!VISTA_DOMO) cfg.activa = si;
   if (si && !antes) {
     postNormal = structuredClone(params.post);
     // por defecto: la de la vista normal sin viñeta y con mucha menos aberración cromática (crece

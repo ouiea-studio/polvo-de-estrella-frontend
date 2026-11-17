@@ -298,3 +298,8 @@ body[data-vista="domo"], body[data-vista="simulador"] { background: #000; }
 body:is([data-vista="domo"], [data-vista="simulador"]) #hud { display: none !important; }
 body[data-vista="domo"] canvas { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); cursor: none; }
 body[data-vista="simulador"] canvas { cursor: grab; }
+
+/* Modo espectador (?rol=espectador, fuente de video): el lienzo es un cuadrado que llena la ventana,
+   centrado (escena.js, areaLienzo). Con la interfaz oculta (?interfaz=0) tampoco se ve el cursor. */
+body[data-rol="espectador"] canvas { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+body[data-rol="espectador"][data-interfaz="nada"] canvas { cursor: none !important; }

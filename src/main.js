@@ -9,8 +9,9 @@ import * as THREE from 'three';
 import { io } from 'socket.io-client';
 import {
   camera, controls, renderer, scene, params, RADIO_PANEO, RADIO_UNIVERSO,
-  pulsoRGB, dibujar, ajustarTamanoEscena, recentrar, MARCAS_PANEO, actualizarParlantes, POS_PARLANTES, referencia,
+  pulsoRGB, dibujar, ajustarTamanoEscena, recentrar, MARCAS_PANEO, actualizarParlantes, POS_PARLANTES, referencia, areaLienzo,
 } from './escena.js';
+import { ESPECTADOR, SIN_INTERFAZ } from './parametros.js';
 import {
   cargarPlantillas, crearGema, destruirGema, colorearGema, animarGema, golpearGema,
   aplicarVidrio, actualizarEscalaNubes, TALLAS, disolverGema, soltarPolvo, apagarPolvoSuelto, animarPolvoSuelto,
@@ -172,6 +173,17 @@ function enlace(estado, texto) {
 socket.on('connect', async () => {
   enlace('vivo', 'Enlace · en línea');
   reloj.sincronizar(pedir); // mide el desfase con el reloj del servidor (y lo repite cada 15 s)
+  if (ESPECTADOR) {
+    // ?rol=espectador: solo recibe el estado y los eventos; no es tripulante (no aparece en la lista,
+    // no tiene color ni indicativo, no crea módulos) y el servidor rechaza cualquier cambio que mande.
+    const r = await pedir('mirar', {});
+    if (!avisarError(r)) return;
+    yo = null;
+    sincronizar(r.estado);
+    refrescarAcople();
+    registrar('Espectador · en línea');
+    return;
+  }
   const r = await pedir('unirse', {});
   if (!avisarError(r)) return;
   yo = r.tu;
@@ -427,11 +439,13 @@ window.addEventListener('keydown', (ev) => {
 // gemas reaccionen a las notas. ESCUCHAR / SILENCIAR solo aparece en el estado "Todo".
 // =====================================================================
 // Primer toque, clic o tecla: enciende el motor (los navegadores exigen un gesto) en silencio.
+// En modo espectador (?rol=espectador) el audio no se enciende nunca: ni con gestos, ni con ESCUCHAR,
+// ni con el panel A (que no se crea), ni con la grabación.
 const primerGesto = () => {
   for (const ev of ['pointerup', 'keydown']) window.removeEventListener(ev, primerGesto, true);
   encenderAudio();
 };
-for (const ev of ['pointerup', 'keydown']) window.addEventListener(ev, primerGesto, true);
+if (!ESPECTADOR) for (const ev of ['pointerup', 'keydown']) window.addEventListener(ev, primerGesto, true);
 const elAudio = document.getElementById('b-audio');
 function pintarBotonAudio() {
   const sonando = audio.audioIniciado() && !audio.silenciado();
@@ -441,6 +455,7 @@ function pintarBotonAudio() {
 // Enciende el audio (lo usan el botón ESCUCHAR y el panel de salida, tecla A)
 let encendido = null;
 function encenderAudio() {
+  if (ESPECTADOR) return Promise.resolve();
   encendido ||= audio.iniciarAudio().then(() => {
     registrar('Motor de audio en línea · ' + salida.FRECUENCIA / 1000 + ' kHz' + (audio.silenciado() ? ' · en silencio' : ''));
     pintarBotonAudio();
@@ -448,6 +463,7 @@ function encenderAudio() {
   return encendido;
 }
 elAudio.addEventListener('click', async () => {
+  if (ESPECTADOR) return;
   if (!audio.audioIniciado() || encendido === null) {
     await encenderAudio();
     audio.silenciar(false); // ESCUCHAR: este computador suena
@@ -572,7 +588,8 @@ let agarre = null; // { pieza, propia, x0, y0, desfase, movida }
 let clicVacio = null; // para deseleccionar con un clic en el espacio vacío
 
 function piezaBajoPuntero(ev) {
-  puntero.set((ev.clientX / window.innerWidth) * 2 - 1, -(ev.clientY / window.innerHeight) * 2 + 1);
+  const a = areaLienzo(); // toda la ventana; en modo espectador, el cuadrado del lienzo
+  puntero.set(((ev.clientX - a.x) / a.w) * 2 - 1, -((ev.clientY - a.y) / a.h) * 2 + 1);
   raycaster.setFromCamera(puntero, camera);
   const lista = [...piezas.values()];
   const golpe = raycaster.intersectObjects(lista.filter((p) => !p.disolucion).map((p) => p.gema.malla), false)[0];
@@ -693,8 +710,8 @@ function actualizarRastreo() {
   const pos = seleccion.gema.grupo.position;
   enPantalla.copy(pos).project(camera);
   if (enPantalla.z > 1) { elCapaLinea.style.display = 'none'; return; } // detrás de la cámara
-  const W = window.innerWidth, H = window.innerHeight;
-  const sx = (enPantalla.x * 0.5 + 0.5) * W, sy = (-enPantalla.y * 0.5 + 0.5) * H;
+  const { x: X0, y: Y0, w: W, h: H } = areaLienzo();
+  const sx = X0 + (enPantalla.x * 0.5 + 0.5) * W, sy = Y0 + (-enPantalla.y * 0.5 + 0.5) * H;
   const caja = elRastreo.getBoundingClientRect();
   const lx = caja.left, ay = caja.top + 22; // a la altura del nombre del módulo
   elLinea.setAttribute('points', (sx + 5).toFixed(1) + ',' + (sy - 5).toFixed(1) + ' ' + (lx - 26).toFixed(1) + ',' + ay.toFixed(1) + ' ' + lx.toFixed(1) + ',' + ay.toFixed(1));
@@ -754,24 +771,24 @@ const elParlantes = Object.fromEntries(Object.keys(POS_PARLANTES).map((id) => {
   return [id, el];
 }));
 function actualizarEtiquetas() {
-  const W = window.innerWidth, H = window.innerHeight;
+  const { x: X0, y: Y0, w: W, h: H } = areaLienzo(); // en modo espectador, el cuadrado del lienzo
   for (const id in elParlantes) {
     const el = elParlantes[id];
     if (el.hidden) continue;
     bajoPieza.copy(POS_PARLANTES[id]).project(camera);
     el.style.display = bajoPieza.z > 1 ? 'none' : '';
-    el.style.transform = 'translate(' + Math.round((bajoPieza.x * 0.5 + 0.5) * W) + 'px,' + Math.round((-bajoPieza.y * 0.5 + 0.5) * H) + 'px) translate(-50%, -50%)';
+    el.style.transform = 'translate(' + Math.round(X0 + (bajoPieza.x * 0.5 + 0.5) * W) + 'px,' + Math.round(Y0 + (-bajoPieza.y * 0.5 + 0.5) * H) + 'px) translate(-50%, -50%)';
   }
   for (const lado in elMarcas) {
     bajoPieza.copy(MARCAS_PANEO[lado]).project(camera);
     elMarcas[lado].style.display = bajoPieza.z > 1 ? 'none' : '';
-    elMarcas[lado].style.transform = 'translate(' + Math.round((bajoPieza.x * 0.5 + 0.5) * W) + 'px,' + Math.round((-bajoPieza.y * 0.5 + 0.5) * H) + 'px) translate(-50%, -50%)';
+    elMarcas[lado].style.transform = 'translate(' + Math.round(X0 + (bajoPieza.x * 0.5 + 0.5) * W) + 'px,' + Math.round(Y0 + (-bajoPieza.y * 0.5 + 0.5) * H) + 'px) translate(-50%, -50%)';
   }
   for (const p of piezas.values()) {
     bajoPieza.copy(p.gema.grupo.position); bajoPieza.y -= 1.0;
     bajoPieza.project(camera);
     p.etiqueta.style.display = bajoPieza.z > 1 ? 'none' : '';
-    p.etiqueta.style.transform = 'translate(' + Math.round((bajoPieza.x * 0.5 + 0.5) * W) + 'px,' + Math.round((-bajoPieza.y * 0.5 + 0.5) * H) + 'px) translateX(-50%)';
+    p.etiqueta.style.transform = 'translate(' + Math.round(X0 + (bajoPieza.x * 0.5 + 0.5) * W) + 'px,' + Math.round(Y0 + (-bajoPieza.y * 0.5 + 0.5) * H) + 'px) translateX(-50%)';
   }
 }
 
@@ -905,7 +922,7 @@ window.addEventListener('keydown', async (ev) => {
 // =====================================================================
 // SALIDA · DOMO (tecla A) — dispositivo, prueba de canales y modo estéreo / 5.1 (local)
 // =====================================================================
-crearDomo({ activar: encenderAudio, registrar, grabacion });
+if (!ESPECTADOR) crearDomo({ activar: encenderAudio, registrar, grabacion }); // panel A: no existe para el espectador
 // Modo 5.1 en uso (si el audio aún no está encendido, el que está elegido)
 const en51 = () => { const e = salida.estado(); return e.activo ? e.modo === '5.1' : salida.ajustes.modo === '5.1'; };
 // El radar muestra los parlantes solo en modo 5.1 y en el estado "Todo", girados según la orientación
@@ -1039,6 +1056,10 @@ cupula.iniciar({
     registrar('Vista ' + (activa ? 'domo' : 'normal'));
   },
 });
+
+// ?interfaz=0: arranca sin interfaz (el estado "Nada", como pulsar H hasta llegar ahí). Va al final,
+// cuando ya existe todo lo que fijarInterfaz toca (anillo de selección, parlantes, radar).
+if (SIN_INTERFAZ) fijarInterfaz('nada');
 
 // Prueba de estrés del audio (solo para probar, solo con npm run dev): http://localhost:5173/?estres=5
 // y un clic. Ver src/estres.js. En la versión publicada no existe (no se pueden lanzar tripulantes de
