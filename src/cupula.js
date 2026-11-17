@@ -28,7 +28,7 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import {
   renderer, scene, composer, controls, params, aplicarPost, ganchos, pasoEscena, ajustarTamanoNormal, RADIO_UNIVERSO,
-  LIENZO_CUADRADO, areaLienzo,
+  LIENZO_CUADRADO, areaLienzo, uniformesEstrellas,
 } from './escena.js';
 import { escribiendo } from './hud.js';
 import { VISTA_DOMO } from './parametros.js';
@@ -39,6 +39,7 @@ const POR_DEFECTO = {
   resolucion: 2048,   // lado del dome master en píxeles (1024, 2048, 3072 o 4096)
   elevMin: 15,        // grados: elevación del borde de la estación
   tamano: 2.2,        // tamaño aparente de las gemas (× su tamaño normal)
+  tamanoEstrellas: 0.5, // tamaño de las estrellas del fondo (× el de siempre); solo en esta vista
   distancia: 10,      // distancia de las gemas al espectador (unidades de la escena)
   rotacion: 0,        // grados: gira todo el dome master (positivo = sentido horario en la imagen)
   voltear: false,     // espejo horizontal (si el proyector lo invierte)
@@ -356,6 +357,18 @@ function render(dt) {
   }
 }
 export const estado = { fps: 0 };
+// Estrellas del fondo: más pequeñas y de tamaño parejo en toda la cúpula, solo en esta vista
+// (escena.js, uniformesEstrellas). Al salir vuelven exactamente al tamaño de la vista normal.
+// Compensación de las caras del cubo (exponente k de escena.js): 0,5 es el valor teórico. Medido con
+// todas las estrellas a la misma distancia: el tamaño en la cúpula varía ~11 % entre cenit, 45° y
+// horizonte sin compensar, y ~3–5 % con 0,5.
+const COMPENSAR_ESTRELLAS = 0.5;
+let ctrlEstrellas = null; // deslizador del panel V: solo visible con la vista domo activa
+function aplicarEstrellas() {
+  uniformesEstrellas.uFactorEstrellas.value = activa ? cfg.tamanoEstrellas : 1;
+  uniformesEstrellas.uCompensarEstrellas.value = activa ? COMPENSAR_ESTRELLAS : 0;
+  ctrlEstrellas?.show(activa);
+}
 function aplicarOrientacion() {
   for (const u of [ojoDePez.uniforms, mascara.uniforms]) { u.uRot.value = deg(cfg.rotacion); u.uVoltear.value = cfg.voltear ? -1 : 1; }
   anillos.visible = activa && cfg.anillos;
@@ -415,6 +428,7 @@ export function fijar(si, conSimulador = false) {
   aplicarPost();
   if (si) ajustar(); else ajustarTamanoNormal();
   aplicarOrientacion();
+  aplicarEstrellas();
   guardar();
   avisar(si);
 }
@@ -446,6 +460,8 @@ export function agregarAlPanel(gui) {
   g.add(estado, 'fps').name('FPS').listen().disable();
   g.add(cfg, 'elevMin', 0, 45, 1).name('elevación mínima (°)').onChange(cambio);
   g.add(cfg, 'tamano', 0.5, 5, 0.05).name('tamaño aparente').onChange(cambio);
+  ctrlEstrellas = g.add(cfg, 'tamanoEstrellas', 0.1, 1, 0.01).name('Tamaño estrellas (domo)').onChange(() => { aplicarEstrellas(); guardar(); });
+  ctrlEstrellas.show(activa);
   g.add(cfg, 'rotacion', -180, 180, 1).name('rotación (°, + horario)').onChange(cambio);
   g.add(cfg, 'voltear').name('voltear horizontal').onChange(cambio);
   g.add(cfg, 'anillos').name('círculos de elevación').onChange(cambio);

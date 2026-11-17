@@ -189,6 +189,22 @@ export const estrellas = new THREE.Points(
   })
 );
 scene.add(estrellas);
+// Tamaño de las estrellas en la VISTA DOMO (cupula.js los cambia al entrar y los devuelve al salir).
+// En la vista normal valen factor 1 y compensación 0: el punto queda exactamente como siempre.
+//  · uFactorEstrellas: multiplica el tamaño del punto (panel V → Vista domo → "Tamaño estrellas (domo)").
+//  · uCompensarEstrellas: en la vista domo cada cara del cubo es una cámara de 90°; un punto de
+//    tamaño fijo en píxeles cubre menos ángulo hacia el borde de la cara (en la dirección radial,
+//    × cos α, siendo α el ángulo desde el eje de la cara). Se agranda × cos α ^ −k (k = este valor;
+//    0 = sin compensar) para que el tamaño visto en la cúpula sea parecido en todas partes.
+export const uniformesEstrellas = { uFactorEstrellas: { value: 1 }, uCompensarEstrellas: { value: 0 } };
+estrellas.material.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, uniformesEstrellas);
+  shader.vertexShader = shader.vertexShader
+    .replace('void main() {', 'uniform float uFactorEstrellas;\nuniform float uCompensarEstrellas;\nvoid main() {')
+    .replace('#include <fog_vertex>', `#include <fog_vertex>
+  float cosEje = max(-mvPosition.z / length(mvPosition.xyz), 0.2);
+  gl_PointSize *= uFactorEstrellas * pow(cosEje, -uCompensarEstrellas);`);
+};
 
 // =====================================================================
 // REFERENCIA DEL CENTRO — guía tipo radar en el plano donde se mueven las piezas.
