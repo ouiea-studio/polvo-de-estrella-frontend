@@ -7,12 +7,18 @@
 //                       tripulante, no crea módulos y nunca enciende el audio. El lienzo es un
 //                       cuadrado (1:1) que llena la ventana (escena.js y cupula.js).
 // Sin parámetros, la app funciona exactamente igual que antes.
+//
+// Dirección propia /domo (p. ej. https://polvo-de-estrella.onrender.com/domo): equivale a los tres
+// juntos, sin escribir parámetros (para TouchDesigner y el proyector del domo). Cada uno se puede
+// desactivar a mano: /domo?vista=normal, /domo?interfaz=1, /domo?rol=tripulante.
+// Al compilar, vite.config.js copia la página en dist/domo/index.html para que Render la sirva.
 
 const q = new URLSearchParams(location.search);
+export const RUTA_DOMO = /^\/domo(\/(index\.html)?)?$/.test(location.pathname);
 
-export const VISTA_DOMO = q.get('vista') === 'domo';
-export const SIN_INTERFAZ = q.get('interfaz') === '0';
-export const ESPECTADOR = q.get('rol') === 'espectador';
+export const VISTA_DOMO = q.has('vista') ? q.get('vista') === 'domo' : RUTA_DOMO;
+export const SIN_INTERFAZ = q.has('interfaz') ? q.get('interfaz') === '0' : RUTA_DOMO;
+export const ESPECTADOR = q.has('rol') ? q.get('rol') === 'espectador' : RUTA_DOMO;
 
 if (ESPECTADOR) document.body.dataset.rol = 'espectador';
 // Con la interfaz oculta desde la dirección (o como espectador) tampoco se ve el cursor mientras la

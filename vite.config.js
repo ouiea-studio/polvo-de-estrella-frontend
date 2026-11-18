@@ -38,8 +38,27 @@ function guardarMaterial() {
   };
 }
 
+// Dirección propia /domo (src/parametros.js): al compilar, la misma página se copia en
+// dist/domo/index.html, así el Static Site de Render la sirve sin reglas extra. Sus archivos
+// (/assets/…, /ajustes.json) usan rutas absolutas y cargan igual desde /domo.
+function paginaDomo() {
+  let salida = 'dist';
+  return {
+    name: 'pagina-domo',
+    apply: 'build',
+    configResolved(config) { salida = config.build.outDir; },
+    async closeBundle() {
+      const { mkdir, copyFile } = await import('node:fs/promises');
+      const { resolve } = await import('node:path');
+      const raiz = fileURLToPath(new URL('.', import.meta.url));
+      await mkdir(resolve(raiz, salida, 'domo'), { recursive: true });
+      await copyFile(resolve(raiz, salida, 'index.html'), resolve(raiz, salida, 'domo', 'index.html'));
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [guardarMaterial()],
+  plugins: [guardarMaterial(), paginaDomo()],
   // Que guardar el material no recargue la página (se perderían las piezas de la sala).
   server: { watch: { ignored: ['**/public/ajustes.json'] } },
 });
