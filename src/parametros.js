@@ -15,3 +15,6 @@ export const SIN_INTERFAZ = q.get('interfaz') === '0';
 export const ESPECTADOR = q.get('rol') === 'espectador';
 
 if (ESPECTADOR) document.body.dataset.rol = 'espectador';
+// Con la interfaz oculta desde la dirección (o como espectador) tampoco se ve el cursor mientras la
+// interfaz esté en "Nada" (estilo.css). Si alguien pulsa H, el cursor vuelve con la interfaz.
+if (SIN_INTERFAZ || ESPECTADOR) document.body.dataset.sinCursor = '1';

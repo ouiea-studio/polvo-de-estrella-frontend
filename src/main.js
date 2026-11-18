@@ -7,6 +7,7 @@
 import './estilo.css';
 import * as THREE from 'three';
 import { io } from 'socket.io-client';
+import { getContext as contextoTone } from 'tone';
 import {
   camera, controls, renderer, scene, params, RADIO_PANEO, RADIO_UNIVERSO,
   pulsoRGB, dibujar, ajustarTamanoEscena, recentrar, MARCAS_PANEO, actualizarParlantes, POS_PARLANTES, referencia, areaLienzo,
@@ -194,12 +195,15 @@ socket.on('connect', async () => {
   registrar(yo.indicativo + ' a bordo');
 });
 
-socket.on('disconnect', () => {
+socket.on('disconnect', (motivo) => {
   // Al caer el enlace el servidor elimina nuestras piezas; al volver nos da un indicativo nuevo.
   yo = null;
   enlace('caido', 'Enlace · perdido, reintentando');
   botonesAcople.forEach((b) => (b.disabled = true));
   registrar('Enlace perdido');
+  // Socket.IO reintenta solo (cada 1 a 5 s, sin límite), salvo si el servidor cerró la conexión a
+  // propósito: el espectador (fuente de video, sin nadie al teclado) reintenta también en ese caso.
+  if (ESPECTADOR && motivo === 'io server disconnect') setTimeout(() => socket.connect(), 1000);
 });
 socket.on('connect_error', () => enlace('caido', 'Enlace · sin señal de ' + API_URL.replace(/^https?:\/\//, '')));
 
@@ -446,6 +450,17 @@ const primerGesto = () => {
   encenderAudio();
 };
 if (!ESPECTADOR) for (const ev of ['pointerup', 'keydown']) window.addEventListener(ev, primerGesto, true);
+// Tone.js crea un contexto de audio propio al cargarse. Normalmente queda suspendido hasta un gesto,
+// pero un navegador que permite sonar sin clic (p. ej. el Web Render TOP de TouchDesigner) lo deja
+// corriendo. El espectador lo suspende y lo vuelve a suspender si algo lo reanuda: nunca suena.
+if (ESPECTADOR) {
+  try {
+    const ctxTone = contextoTone().rawContext;
+    const callar = () => { if (ctxTone.state === 'running') ctxTone.suspend().catch(() => {}); };
+    ctxTone.addEventListener?.('statechange', callar);
+    callar();
+  } catch { /* sin Web Audio: nada que callar */ }
+}
 const elAudio = document.getElementById('b-audio');
 function pintarBotonAudio() {
   const sonando = audio.audioIniciado() && !audio.silenciado();
